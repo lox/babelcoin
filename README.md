@@ -1,4 +1,4 @@
-CoinX
+BabelCoin
 =========
 
 A generic interface to access and interoperate between various cryptocurrency exchanges.
@@ -10,10 +10,11 @@ Installing
 Usage
 -----
 
-import "github.com/lox/coinx"
+```go
+import "github.com/lox/babelcoin"
 import "fmt"
 
-exchange := coinx.NewExchange("btce", "usd/ltc")
+exchange := babelcoin.NewExchange("btce", "usd/ltc")
 
 // get a feed of orders
 feed := exchange.OrderFeed()
@@ -30,6 +31,7 @@ limitOrder.Execute()
 // place a market order
 marketOrder := exchange.NewLimitOrder(100.0, 11.0)
 marketOrder.Execute()
+```
 
 
 
