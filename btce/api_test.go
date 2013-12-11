@@ -10,8 +10,8 @@ import(
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestSpec(t *testing.T) {
-	Convey("Subject: Authentication", t, func() {
+func TestApiSpec(t *testing.T) {
+	Convey("Subject: BTC-e Private API", t, func() {
 
 		json := `{"success":0,"error":"llamas be trippin"}`
 
@@ -41,7 +41,7 @@ func TestSpec(t *testing.T) {
 			json = `{"success":1,"return":{
 				"transaction_count": 0,
 				"open_order": 0,
-				"server_time": 1
+				"server_time": 1386741355
 			}}`
 
 			_, error := btce.GetInfo()
@@ -52,6 +52,7 @@ func TestSpec(t *testing.T) {
 			btce := NewBtceApi(server.URL, "invalid", "llamas")
 			_, error := btce.GetInfo()
 
+
 			So(error, ShouldNotBeNil)
 		})
 
@@ -61,10 +62,11 @@ func TestSpec(t *testing.T) {
 				"funds": {"usd": 101},
 				"transaction_count": 0,
 				"open_order": 0,
-				"server_time": 1
+				"server_time": 1342448420
 			}}`
 
 			info, error := btce.GetInfo()
+
 			So(error, ShouldBeNil)
 			So(info.Funds["usd"] , ShouldEqual, 101)
 		})
@@ -110,6 +112,69 @@ func TestSpec(t *testing.T) {
 			So(len(trades) , ShouldEqual, 1)
 		})
 
+		Convey(`ActiveOrders should return orders`, func() {
+			btce := NewBtceApi(server.URL, "valid", "credentials")
+			json = `{"success":1,
+				"return":{
+					"343152":{
+						"pair":"btc_usd",
+						"type":"sell",
+						"amount":1.00000000,
+						"rate":3.00000000,
+						"timestamp_created":1342448420,
+						"status":0
+					}}}`
+
+			trades, error := btce.ActiveOrders("btc_usd")
+
+			So(error, ShouldBeNil)
+			So(len(trades), ShouldEqual, 1)
+		})
+
+
+		Convey(`Trade should return funds`, func() {
+			btce := NewBtceApi(server.URL, "valid", "credentials")
+			json = `{ "success":1,
+				"return":{
+					"received":0.1,
+					"remains":0,
+					"order_id":10,
+					"funds":{
+						"usd":325,
+						"btc":2.498,
+						"sc":121.998,
+						"ltc":0,
+						"ruc":0,
+						"nmc":0
+				}}}`
+
+			trade, error := btce.Trade("btc_usd", "buy", 1000.0, 1)
+
+			So(error, ShouldBeNil)
+			So(trade.OrderId, ShouldEqual, 10)
+			So(trade.Received, ShouldEqual, 0.1)
+			So(trade.Remains, ShouldEqual, 0)
+		})
+
+		Convey(`CancelOrder should return funds`, func() {
+			btce := NewBtceApi(server.URL, "valid", "credentials")
+			json = `{ "success":1,
+				"return":{
+					"order_id":343154,
+					"funds":{
+						"usd":325,
+						"btc":24.998,
+						"sc":121.998,
+						"ltc":0,
+						"ruc":0,
+						"nmc":0
+					}}}`
+
+			result, error := btce.CancelOrder(343154)
+
+			So(error, ShouldBeNil)
+			So(result.OrderId, ShouldEqual, 343154)
+		})
 	})
 }
 

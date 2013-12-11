@@ -6,6 +6,9 @@ A generic interface to access and interoperate between various cryptocurrency ex
 Installing
 ----------
 
+```bash
+go get -u github.com/lox/babelcoin
+```
 
 Usage
 -----
@@ -14,7 +17,7 @@ Usage
 import "github.com/lox/babelcoin"
 import "fmt"
 
-exchange := babelcoin.NewExchange("btce", "usd/ltc")
+exchange := babelcoin.NewExchange("btce", "usd_ltc")
 
 // get a feed of orders
 feed := exchange.OrderFeed()

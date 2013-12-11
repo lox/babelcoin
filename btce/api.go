@@ -13,11 +13,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha512"
 	"encoding/hex"
+	//"github.com/davecgh/go-spew/spew"
+	babel "github.com/lox/babelcoin/core"
 )
 
 const (
-	BaseUrl = "https://btc-e.com/tapi"
-	TradeFee = 0.02
+	PrivateApiUrl = "https://btc-e.com/tapi"
 )
 
 type GetInfoResponse struct {
@@ -25,28 +26,28 @@ type GetInfoResponse struct {
 	Rights 				map[string]int 		`json:"rights"`
 	TransactionCount 	int					`json:"transaction_count"`
 	OpenOrders 			int 				`json:"open_orders"`
-	ServerTime 			time.Time
+	ServerTime 			babel.Timestamp 	`json:"server_time"`
 }
 
 type TransHistoryResponse struct {
-	Id					int
+	Id					int 				`json:"-"`
 	Type 				int					`json:"type"`
 	Amount 				float64 			`json:"amount"`
 	Currency 			string				`json:"currency"`
 	Description 		string 				`json:"desc"`
 	Status 				int 				`json:"status"`
-	Timestamp 			time.Time 			`json:"-"`
+	Timestamp 			babel.Timestamp 	`json:"timestamp"`
 }
 
 type TradeHistoryResponse struct {
-	Id					int
+	Id					int 				`json:"-"`
 	Pair 				string				`json:"pair"`
 	Type 				string				`json:"type"`
 	Amount 				float64 			`json:"amount"`
 	Rate 				float64 			`json:"rate"`
 	OrderId				int 				`json:"order_id"`
 	YourOrder			int 				`json:"is_your_order"`
-	Timestamp 			time.Time 			`json:"-"`
+	Timestamp 			babel.Timestamp		`json:"timestamp"`
 }
 
 type TradeResponse struct {
@@ -54,6 +55,17 @@ type TradeResponse struct {
 	Remains 			float64 			`json:"remains"`
 	OrderId				int 				`json:"order_id"`
 	Funds 				map[string]float64	`json:"funds"`
+}
+
+type ActiveOrdersResponse struct {
+	Id					int 				`json:"-"`
+	Pair 				string				`json:"pair"`
+	Type 				string				`json:"type"`
+	Amount 				float64 			`json:"amount"`
+	Rate 				float64 			`json:"rate"`
+	OrderId				int 				`json:"-"`
+	Status				int 				`json:"status"`
+	Timestamp 			babel.Timestamp		`json:"timestamp_created"`
 }
 
 type CancelOrderResponse struct {
@@ -96,63 +108,44 @@ func (b *BtceApi) encodePostData(method string, params map[string]string) string
 	return result
 }
 
-// parse an api response into an object
-func (b *BtceApi) parseResponse(resp *http.Response) (json.RawMessage, error) {
+// marshal an api response into an object
+func (b *BtceApi) marshalResponse(resp *http.Response, v interface{}) (error) {
     // read the response
     defer resp.Body.Close()
     bytes, error := ioutil.ReadAll(resp.Body)
     if error != nil {
-    	return nil, error
+    	return error
     }
 
-    // unmarshal into a map
-    var raw map[string]json.RawMessage
-    if error = json.Unmarshal(bytes, &raw); error != nil {
-    	return nil, error
+    data := &struct{
+    	Success int
+    	Return json.RawMessage
+    	Error string
+    }{}
+
+    if error = json.Unmarshal(bytes, &data); error != nil {
+    	return error
     }
 
-    var success int64
-
-    // handle parse errors
-    if error = json.Unmarshal(raw["success"], &success); error != nil {
-    	return nil, error
+    if data.Success != 1 {
+    	return errors.New("Request failed: "+data.Error)
     }
 
-    // handle service errors
-    if success != 1 {
-    	var errorMsg string
-    	json.Unmarshal(raw["error"], &errorMsg)
-    	return nil, errors.New("Request failed: "+errorMsg)
+    if error = json.Unmarshal(data.Return, &v); error != nil {
+    	return error
     }
 
-    return raw["return"], nil
+    return nil
 }
 
-// parse a specific column as a timestamp from a raw json message
-func (b *BtceApi) parseTime(message json.RawMessage, key string) (time.Time, error) {
-	var data map[string]json.RawMessage
-
-	if error := json.Unmarshal(message, &data); error != nil {
-		return time.Time{}, error
-    }
-
-    var timestamp int64
-
-	if tsError := json.Unmarshal(data[key], &timestamp); tsError != nil {
-		return time.Time{}, tsError
-    }
-
-	return time.Unix(timestamp, 0), nil
-}
-
-// make a call to the btc-e api
-func (b *BtceApi) apiCall(method string, params map[string]string) (json.RawMessage, error) {
+// make a call to the btc-e api, marshal into v
+func (b *BtceApi) apiCall(method string, v interface{}, params map[string]string) (error) {
     client := &http.Client{}
     postData := b.encodePostData(method, params)
 
     r, error := http.NewRequest("POST", b.url, bytes.NewBufferString(postData))
     if error != nil {
-    	return nil, error
+    	return error
     }
 
     r.Header.Add("Sign", Sign(b.secret, postData))
@@ -162,67 +155,40 @@ func (b *BtceApi) apiCall(method string, params map[string]string) (json.RawMess
 
     resp, error := client.Do(r)
     if error != nil {
-    	return nil, error
+    	return error
     }
 
-    return b.parseResponse(resp)
+    return b.marshalResponse(resp, v)
 }
 
 // get info about the account
 func (b *BtceApi) GetInfo() (GetInfoResponse, error) {
-	var message = GetInfoResponse{}
+	var resp = GetInfoResponse{}
 
-	resp, error := b.apiCall("getInfo", map[string]string{})
-	if error != nil {
-		return message, error
+	if err := b.apiCall("getInfo", &resp, map[string]string{}); err != nil {
+		return resp, err
 	}
 
-	if error = json.Unmarshal(resp, &message); error != nil {
-		return message, error
-    }
-
-    timestamp, tsError := b.parseTime(resp, "server_time")
-    if error != tsError {
-    	return message, tsError
-    }
-
-    message.ServerTime = timestamp
-	return message, nil
+	return resp, nil
 }
 
 // returns transaction history
 func (b *BtceApi) TransHistory(params map[string]string) ([]TransHistoryResponse, error) {
-	resp, error := b.apiCall("TransHistory", params)
-	if error != nil {
-		return nil, error
+    var resp = map[string]TransHistoryResponse{}
+
+	if err := b.apiCall("TransHistory", &resp, params); err != nil {
+		return nil, err
 	}
 
 	var transactions []TransHistoryResponse
-	var data map[string]json.RawMessage
 
-	if error = json.Unmarshal(resp, &data); error != nil {
-		return nil, error
-    }
-
-	for id, row := range data {
-		var trans TransHistoryResponse
-		if error = json.Unmarshal(row, &trans); error != nil {
-			return nil, error
-	    }
-
+	for id, trans := range resp {
 	    idInt, error := strconv.Atoi(id)
 	    if error != nil {
 	    	return nil, error
 	    }
 
 	    trans.Id = idInt
-
-	    timestamp, tsError := b.parseTime(row, "timestamp")
-	    if error != tsError {
-	    	return nil, tsError
-	    }
-
-	    trans.Timestamp = timestamp
 		transactions = append(transactions, trans)
 	}
 
@@ -231,74 +197,83 @@ func (b *BtceApi) TransHistory(params map[string]string) ([]TransHistoryResponse
 
 // returns trade history
 func (b *BtceApi) TradeHistory(params map[string]string) ([]TradeHistoryResponse, error) {
-	resp, error := b.apiCall("TradeHistory", params)
+	resp := map[string]TradeHistoryResponse{}
+
+	error := b.apiCall("TradeHistory", &resp, params)
 	if error != nil {
 		return nil, error
 	}
 
 	var trades []TradeHistoryResponse
-	var data map[string]json.RawMessage
 
-	if error = json.Unmarshal(resp, &data); error != nil {
-		return nil, error
-    }
-
-	for id, row := range data {
-		var trade TradeHistoryResponse
-		if error = json.Unmarshal(row, &trade); error != nil {
-			return nil, error
-	    }
-
+	for id, trade := range resp {
 	    idInt, error := strconv.Atoi(id)
 	    if error != nil {
 	    	return nil, error
 	    }
 
 	    trade.Id = idInt
-
-	    timestamp, tsError := b.parseTime(row, "timestamp")
-	    if error != tsError {
-	    	return nil, tsError
-	    }
-
-	    trade.Timestamp = timestamp
 		trades = append(trades, trade)
 	}
 
 	return trades, nil
 }
 
+// return active orders
+func (b *BtceApi) ActiveOrders(pair string) ([]ActiveOrdersResponse, error) {
+	var resp map[string]ActiveOrdersResponse
+
+	error := b.apiCall("ActiveOrders", &resp, map[string]string {
+		"pair": pair,
+	})
+	if error != nil {
+		return nil, error
+	}
+
+	var orders []ActiveOrdersResponse
+
+	for id, order := range resp {
+	    idInt, error := strconv.Atoi(id)
+	    if error != nil {
+	    	return nil, error
+	    }
+
+	    order.OrderId = idInt
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
 // performs a trade
 func (b *BtceApi) Trade(pair string, t string, rate float64, amount float64) (TradeResponse, error) {
-	var message = TradeResponse{}
-	resp, error := b.apiCall("Trade", map[string]string{
+	var resp = TradeResponse{}
+	error := b.apiCall("Trade", &resp, map[string]string{
 		"pair": pair,
 		"type": t,
 		"rate": strconv.FormatFloat(rate, 'f', -1, 64),
 		"amount": strconv.FormatFloat(amount, 'f', -1, 64),
 	})
 	if error != nil {
-		return message, error
+		return resp, error
 	}
-	if error = json.Unmarshal(resp, &message); error != nil {
-		return message, error
-    }
 
-	return message, nil
+	return resp, nil
 }
 
 // cancels an order
 func (b *BtceApi) CancelOrder(tradeId int) (CancelOrderResponse, error) {
-	var message = CancelOrderResponse{}
-	resp, error := b.apiCall("CancelOrder", map[string]string{
+	var resp = CancelOrderResponse{}
+
+	error := b.apiCall("CancelOrder", &resp, map[string]string{
 		"order_id": strconv.Itoa(tradeId),
 	})
 	if error != nil {
-		return message, error
+		return resp, error
 	}
-	if error = json.Unmarshal(resp, &message); error != nil {
-		return message, error
-    }
 
-	return message, nil
+	return resp, nil
 }
+
+
+

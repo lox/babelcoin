@@ -10,7 +10,7 @@ import (
 func btceFromEnv() *btce.BtceApi {
 	key := os.Getenv("BTCE_KEY")
 	secret := os.Getenv("BTCE_SECRET")
-	return btce.NewBtceApi(btce.BaseUrl, key, secret)
+	return btce.NewBtceApi(btce.PrivateApiUrl, key, secret)
 }
 
 func main() {
@@ -85,11 +85,34 @@ func main() {
 		},
 	}
 
+	var Btce_TickerCmd = &cobra.Command{
+		Use:   "ticker",
+		Short: "Poll the ticker on btc-e.com",
+		Run: func(cmd *cobra.Command, args []string) {
+			//i := btce.NewInfoApi(btce.InfoUrl)
+			//info, _ := i.Pairs()
+			//spew.Dump(info)
+
+			t := btce.NewTradesApi(btce.TradesUrl, []string{"ltc_btc"}, 10)
+			trades, _ := t.Trades()
+
+			spew.Dump(trades)
+
+			b := btce.NewTickerApi(btce.TickerUrl, []string{"ltc_btc"})
+			candles, error := b.Candles()
+			if error != nil {
+				panic(error)
+			}
+
+			spew.Dump(candles)
+		},
+	}
 
 	BtceCmd.AddCommand(Btce_BalancesCmd)
 	BtceCmd.AddCommand(Btce_TransactionsCmd)
 	BtceCmd.AddCommand(Btce_TradesCmd)
 	BtceCmd.AddCommand(Btce_TradeCmd)
+	BtceCmd.AddCommand(Btce_TickerCmd)
 
 	var rootCmd = &cobra.Command{Use: "babelcoin"}
 	rootCmd.AddCommand(BtceCmd)
