@@ -35,19 +35,10 @@ trades, err := limitOrder.Execute()
 Supported Exchanges
 -------------------
 
- * BTC-e
+ * BTC-e (format is btce/ltc_usd)
    * Account / Trading
    * Trades
    * Order Book
    * Market Data
-
-
-
-
-
-
-
-
-
-
-
+* BitcoinCharts (format is bitcoincharts/mtgoxUSD)
+   * Market Data

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"../btce"
+	"../bitcoincharts"
 	core "../core"
 )
 
@@ -19,6 +20,8 @@ func NewExchange(exchange string) (core.Exchange, error) {
 			} else {
 				return exchange, nil
 			}
+		case "bitcoincharts":
+			return bitcoincharts.NewExchange(), nil
 		default:
 			return nil, errors.New("Unknown exchange "+exchange)
 	}
