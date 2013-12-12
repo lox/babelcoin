@@ -1,16 +1,16 @@
 package main
 
 import (
-    "github.com/docopt/docopt.go"
-	"./factory"
 	"./core"
-	"time"
-	"log"
+	"./factory"
 	"fmt"
+	"github.com/docopt/docopt.go"
+	"log"
+	"time"
 )
 
 func main() {
-usage := `Babelcoin. An interface to cryptocoin exchanges
+	usage := `Babelcoin. An interface to cryptocoin exchanges
 
 Usage:
   babelcoin ticker <symbol> [--interval=<duration>]
@@ -24,13 +24,13 @@ Options:
   -i --interval=<duration>  Time interval to use [default: 30s].
   --timeout=<duration>  	A timeout to cancel the order by if not filled.`
 
-    args, err := docopt.Parse(usage, nil, true, "Babelcoin", false)
-    if err != nil {
-    	panic(err)
-    }
+	args, err := docopt.Parse(usage, nil, true, "Babelcoin", false)
+	if err != nil {
+		panic(err)
+	}
 
-    if ticker := args["ticker"]; ticker.(bool) {
-    	Ticker(args)
+	if ticker := args["ticker"]; ticker.(bool) {
+		Ticker(args)
 	} else if symbols := args["symbols"]; symbols.(bool) {
 		Symbols(args)
 	}
@@ -48,7 +48,7 @@ func Ticker(args map[string]interface{}) {
 		panic(err)
 	}
 
-	exchange, err := factory.NewExchangeWithConfig(symbol.Exchange(), map[string]interface{} {
+	exchange, err := factory.NewExchangeWithConfig(symbol.Exchange(), map[string]interface{}{
 		"poll_duration": duration,
 	})
 	if err != nil {
@@ -83,6 +83,6 @@ func Symbols(args map[string]interface{}) {
 	}
 
 	for _, symbol := range symbols {
-		fmt.Printf("%s\n",symbol)
+		fmt.Printf("%s\n", symbol)
 	}
 }

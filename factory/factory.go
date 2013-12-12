@@ -1,11 +1,11 @@
 package factory
 
 import (
+	"../bitcoincharts"
+	"../btce"
+	core "../core"
 	"errors"
 	"os"
-	"../btce"
-	"../bitcoincharts"
-	core "../core"
 )
 
 func NewExchange(exchange string) (core.Exchange, error) {
@@ -14,20 +14,20 @@ func NewExchange(exchange string) (core.Exchange, error) {
 
 func NewExchangeWithConfig(exchange string, config map[string]interface{}) (core.Exchange, error) {
 	switch exchange {
-		case "btce":
-			exchange, err := btce.NewExchange(merge(config, map[string]interface{}{
-				"key": getEnv("BTCE_KEY", true),
-				"secret": getEnv("BTCE_SECRET", true),
-			}))
-			if err != nil {
-				return nil, err
-			} else {
-				return exchange, nil
-			}
-		case "bitcoincharts":
-			return bitcoincharts.NewExchange(config), nil
-		default:
-			return nil, errors.New("Unknown exchange "+exchange)
+	case "btce":
+		exchange, err := btce.NewExchange(merge(config, map[string]interface{}{
+			"key":    getEnv("BTCE_KEY", true),
+			"secret": getEnv("BTCE_SECRET", true),
+		}))
+		if err != nil {
+			return nil, err
+		} else {
+			return exchange, nil
+		}
+	case "bitcoincharts":
+		return bitcoincharts.NewExchange(config), nil
+	default:
+		return nil, errors.New("Unknown exchange " + exchange)
 	}
 
 	return nil, nil
@@ -37,7 +37,7 @@ func NewExchangeWithConfig(exchange string, config map[string]interface{}) (core
 func getEnv(key string, allowEmpty bool) string {
 	value := os.Getenv(key)
 	if !allowEmpty && value == "" {
-		panic("ENV variable " +key + " needs to be set")
+		panic("ENV variable " + key + " needs to be set")
 	}
 	return value
 }

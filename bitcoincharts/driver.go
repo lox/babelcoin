@@ -2,8 +2,8 @@ package bitcoincharts
 
 import (
 	"../core"
-	"time"
 	"errors"
+	"time"
 )
 
 type Exchange struct {
@@ -36,7 +36,7 @@ func (b *Exchange) Symbols() ([]string, error) {
 
 type MarketDataService struct {
 	exchange *Exchange
-	symbol string
+	symbol   string
 }
 
 func (b *MarketDataService) Fetch() (babelcoin.MarketData, error) {
@@ -48,7 +48,7 @@ func (b *MarketDataService) Fetch() (babelcoin.MarketData, error) {
 
 	market, ok := markets[b.symbol]
 	if !ok {
-		return nil, errors.New("No market data found for "+b.symbol)
+		return nil, errors.New("No market data found for " + b.symbol)
 	}
 
 	return &BitcoinChartsMarketData{market}, nil
@@ -57,7 +57,7 @@ func (b *MarketDataService) Fetch() (babelcoin.MarketData, error) {
 func (b *MarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
 	duration, ok := b.exchange.config["poll_duration"]
 	if !ok {
-		duration = time.Duration(10)*time.Second
+		duration = time.Duration(10) * time.Second
 	}
 
 	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil

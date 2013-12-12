@@ -1,11 +1,11 @@
 package btce
 
-import(
+import (
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"io"
-	"io/ioutil"
 	//"github.com/davecgh/go-spew/spew"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -28,7 +28,7 @@ func TestApiSpec(t *testing.T) {
 			} else if r.Header.Get("Sign") == "" {
 				http.Error(w, `{"success":0,"error":"Missing sign header"}`,
 					http.StatusInternalServerError)
-			}  else if r.Header.Get("Sign") != Sign("credentials", string(body)) {
+			} else if r.Header.Get("Sign") != Sign("credentials", string(body)) {
 				http.Error(w, `{"success":0,"error":"Invalid signature"}`,
 					http.StatusInternalServerError)
 			} else {
@@ -52,7 +52,6 @@ func TestApiSpec(t *testing.T) {
 			btce := NewBtceApi(server.URL, "invalid", "llamas")
 			_, error := btce.GetInfo()
 
-
 			So(error, ShouldNotBeNil)
 		})
 
@@ -68,7 +67,7 @@ func TestApiSpec(t *testing.T) {
 			info, error := btce.GetInfo()
 
 			So(error, ShouldBeNil)
-			So(info.Funds["usd"] , ShouldEqual, 101)
+			So(info.Funds["usd"], ShouldEqual, 101)
 		})
 
 		Convey(`TransHistory should return transactions`, func() {
@@ -86,7 +85,7 @@ func TestApiSpec(t *testing.T) {
 
 			transactions, error := btce.TransHistory(map[string]string{})
 			So(error, ShouldBeNil)
-			So(len(transactions) , ShouldEqual, 1)
+			So(len(transactions), ShouldEqual, 1)
 			So(transactions[0].Id, ShouldEqual, 1081672)
 			So(transactions[0].Amount, ShouldEqual, 1)
 			So(transactions[0].Description, ShouldEqual, "BTC Payment")
@@ -109,7 +108,7 @@ func TestApiSpec(t *testing.T) {
 
 			trades, error := btce.TradeHistory(map[string]string{})
 			So(error, ShouldBeNil)
-			So(len(trades) , ShouldEqual, 1)
+			So(len(trades), ShouldEqual, 1)
 		})
 
 		Convey(`ActiveOrders should return orders`, func() {
@@ -130,7 +129,6 @@ func TestApiSpec(t *testing.T) {
 			So(error, ShouldBeNil)
 			So(len(trades), ShouldEqual, 1)
 		})
-
 
 		Convey(`Trade should return funds`, func() {
 			btce := NewBtceApi(server.URL, "valid", "credentials")
@@ -177,4 +175,3 @@ func TestApiSpec(t *testing.T) {
 		})
 	})
 }
-

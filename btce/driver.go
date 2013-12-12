@@ -35,7 +35,7 @@ func (b *BtceExchange) Symbols() ([]string, error) {
 }
 
 type BtceMarketDataService struct {
-	ticker *BtceTickerApi
+	ticker   *BtceTickerApi
 	exchange *BtceExchange
 }
 
@@ -50,7 +50,7 @@ func (b *BtceMarketDataService) Fetch() (babelcoin.MarketData, error) {
 func (b *BtceMarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
 	duration, ok := b.exchange.config["poll_duration"]
 	if !ok {
-		duration = time.Duration(10)*time.Second
+		duration = time.Duration(10) * time.Second
 	}
 
 	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil

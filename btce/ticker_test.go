@@ -1,10 +1,10 @@
 package btce
 
-import(
+import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"io"
 	//"github.com/davecgh/go-spew/spew"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -36,7 +36,7 @@ func TestTicker(t *testing.T) {
 			data, error := ticker.MarketData()
 
 			So(error, ShouldBeNil)
-			So(len(data) , ShouldEqual, 1)
+			So(len(data), ShouldEqual, 1)
 			So(data[0].Pair, ShouldEqual, "btc_usd")
 		})
 
@@ -53,4 +53,3 @@ func TestTicker(t *testing.T) {
 
 	})
 }
-
