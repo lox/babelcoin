@@ -8,11 +8,13 @@ type MarketData interface {
 	Ask() float64
 	Bid() float64
 	Last() float64
+	Volume() float64
 	Updated() time.Time
 }
 
 type Exchange interface {
-	MarketData() (MarketDataService, error)
+	MarketData(symbol string) (MarketDataService, error)
+	Symbols() ([]string, error)
 }
 
 type MarketDataService interface {

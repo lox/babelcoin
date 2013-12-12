@@ -2,19 +2,19 @@ package main
 
 import (
     "github.com/docopt/docopt.go"
-    //"github.com/davecgh/go-spew/spew"
 	"./factory"
+	"./core"
 	"time"
 	"log"
+	"fmt"
 )
 
 func main() {
 usage := `Babelcoin. An interface to cryptocoin exchanges
 
 Usage:
-  babelcoin ticker <pair> [--interval=<duration>]
-  babelcoin currencies <pair> [--interval=<duration>]
-  babelcoin trade <pair> (BID|ASK) <amount> [price] [--timeout=<duration>]
+  babelcoin ticker <symbol> [--interval=<duration>]
+  babelcoin symbols <exchange>
   babelcoin -h | --help
   babelcoin --version
 
@@ -29,14 +29,21 @@ Options:
     	panic(err)
     }
 
-    if _,ticker := args["ticker"]; ticker {
+    if ticker := args["ticker"]; ticker.(bool) {
     	Ticker(args)
+	} else if symbols := args["symbols"]; symbols.(bool) {
+		Symbols(args)
 	}
 }
 
 func Ticker(args map[string]interface{}) {
-	pair := args["<pair>"].(string)
-	exchange, err := factory.NewExchange(pair)
+	symbol := babelcoin.ParseSymbol(args["<symbol>"].(string))
+	pair, err := symbol.Pair()
+	if err != nil {
+		panic(err)
+	}
+
+	exchange, err := factory.NewExchange(symbol.Exchange())
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +53,7 @@ func Ticker(args map[string]interface{}) {
 		panic(err)
 	}
 
-	market, err := exchange.MarketData()
+	market, err := exchange.MarketData(pair)
 	if err != nil {
 		panic(err)
 	}
@@ -57,8 +64,8 @@ func Ticker(args map[string]interface{}) {
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("Last: %0.6f Ask: %.6f Bid %.6f",
-			data.Last(), data.Ask(), data.Bid())
+		log.Printf("Last: %0.6f Ask: %.6f Bid %.6f Volume: %.2f",
+			data.Last(), data.Ask(), data.Bid(), data.Volume())
 	}
 
 	tick()
@@ -74,9 +81,18 @@ func Ticker(args map[string]interface{}) {
     <- doneChan
 }
 
-func Currencies(args map[string]interface{}) {
+func Symbols(args map[string]interface{}) {
 	exchange, err := factory.NewExchange(args["<exchange>"].(string))
 	if err != nil {
 		panic(err)
+	}
+
+	symbols, err := exchange.Symbols()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, symbol := range symbols {
+		fmt.Printf("%s\n",symbol)
 	}
 }

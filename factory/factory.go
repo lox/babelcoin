@@ -1,22 +1,16 @@
 package factory
 
 import (
-	"strings"
 	"errors"
 	"os"
 	"../btce"
 	core "../core"
 )
 
-func NewExchange(pair string) (core.Exchange, error) {
-	parts := strings.Split(pair, "/")
-	if len(parts) != 2 {
-		return nil, errors.New("Expected pair in form of exchange/cur_cur")
-	}
-
-	switch parts[0] {
+func NewExchange(exchange string) (core.Exchange, error) {
+	switch exchange {
 		case "btce":
-			exchange, err := btce.NewExchange(parts[1], map[string]string{
+			exchange, err := btce.NewExchange(map[string]string{
 				"key": getEnv("BTCE_KEY", true),
 				"secret": getEnv("BTCE_SECRET", true),
 			})
@@ -26,7 +20,7 @@ func NewExchange(pair string) (core.Exchange, error) {
 				return exchange, nil
 			}
 		default:
-			return nil, errors.New("Unknown exchange "+parts[0])
+			return nil, errors.New("Unknown exchange "+exchange)
 	}
 
 	return nil, nil

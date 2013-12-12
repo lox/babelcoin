@@ -7,18 +7,32 @@ import (
 )
 
 type BtceExchange struct {
-	pair string
 	config map[string]string
 }
 
-func NewExchange(pair string, config map[string]string) (*BtceExchange, error) {
-	return &BtceExchange{pair, config}, nil
+func NewExchange(config map[string]string) (*BtceExchange, error) {
+	return &BtceExchange{config}, nil
 }
 
-func (b *BtceExchange) MarketData() (babelcoin.MarketDataService, error) {
+func (b *BtceExchange) MarketData(pair string) (babelcoin.MarketDataService, error) {
 	return &BtceMarketDataService{
-		NewTickerApi(TickerUrl, []string{b.pair}),
+		NewTickerApi(TickerUrl, []string{pair}),
 	}, nil
+}
+
+func (b *BtceExchange) Symbols() ([]string, error) {
+	api := NewInfoApi(InfoUrl)
+	pairs, error := api.Pairs()
+	if error != nil {
+		return []string{}, error
+	}
+
+	var symbols []string
+	for symbol := range pairs {
+		symbols = append(symbols, symbol)
+	}
+
+	return symbols, nil
 }
 
 type BtceMarketDataService struct {
@@ -47,6 +61,10 @@ func (d *BtceMarketData) Bid() float64 {
 
 func (d *BtceMarketData) Last() float64 {
 	return d.data.Last
+}
+
+func (d *BtceMarketData) Volume() float64 {
+	return d.data.Volume
 }
 
 func (d *BtceMarketData) Updated() time.Time {
