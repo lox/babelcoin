@@ -19,4 +19,9 @@ type Exchange interface {
 
 type MarketDataService interface {
 	Fetch() (MarketData, error)
+	Feed() (MarketDataFeed, error)
+}
+
+type MarketDataFeed interface {
+	Channel() chan MarketData
 }

@@ -7,14 +7,15 @@ import (
 )
 
 type Exchange struct {
+	config map[string]interface{}
 }
 
-func NewExchange() *Exchange {
-	return &Exchange{}
+func NewExchange(config map[string]interface{}) *Exchange {
+	return &Exchange{config}
 }
 
 func (b *Exchange) MarketData(symbol string) (babelcoin.MarketDataService, error) {
-	return &MarketDataService{symbol}, nil
+	return &MarketDataService{b, symbol}, nil
 }
 
 func (b *Exchange) Symbols() ([]string, error) {
@@ -34,6 +35,7 @@ func (b *Exchange) Symbols() ([]string, error) {
 }
 
 type MarketDataService struct {
+	exchange *Exchange
 	symbol string
 }
 
@@ -50,6 +52,15 @@ func (b *MarketDataService) Fetch() (babelcoin.MarketData, error) {
 	}
 
 	return &BitcoinChartsMarketData{market}, nil
+}
+
+func (b *MarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
+	duration, ok := b.exchange.config["poll_duration"]
+	if !ok {
+		duration = time.Duration(10)*time.Second
+	}
+
+	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil
 }
 
 type BitcoinChartsMarketData struct {

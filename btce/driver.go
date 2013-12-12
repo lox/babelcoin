@@ -1,22 +1,21 @@
 package btce
 
 import (
-	//"github.com/davecgh/go-spew/spew"
 	"../core"
 	"time"
 )
 
 type BtceExchange struct {
-	config map[string]string
+	config map[string]interface{}
 }
 
-func NewExchange(config map[string]string) (*BtceExchange, error) {
-	return &BtceExchange{config}, nil
+func NewExchange(config map[string]interface{}) (*BtceExchange, error) {
+	return &BtceExchange{config: nil}, nil
 }
 
 func (b *BtceExchange) MarketData(pair string) (babelcoin.MarketDataService, error) {
 	return &BtceMarketDataService{
-		NewTickerApi(TickerUrl, []string{pair}),
+		NewTickerApi(TickerUrl, []string{pair}), b,
 	}, nil
 }
 
@@ -37,6 +36,7 @@ func (b *BtceExchange) Symbols() ([]string, error) {
 
 type BtceMarketDataService struct {
 	ticker *BtceTickerApi
+	exchange *BtceExchange
 }
 
 func (b *BtceMarketDataService) Fetch() (babelcoin.MarketData, error) {
@@ -45,6 +45,15 @@ func (b *BtceMarketDataService) Fetch() (babelcoin.MarketData, error) {
 		return nil, err
 	}
 	return &BtceMarketData{data[0]}, nil
+}
+
+func (b *BtceMarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
+	duration, ok := b.exchange.config["poll_duration"]
+	if !ok {
+		duration = time.Duration(10)*time.Second
+	}
+
+	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil
 }
 
 type BtceMarketData struct {

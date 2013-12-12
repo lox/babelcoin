@@ -43,12 +43,14 @@ func Ticker(args map[string]interface{}) {
 		panic(err)
 	}
 
-	exchange, err := factory.NewExchange(symbol.Exchange())
+	duration, err := time.ParseDuration(args["--interval"].(string))
 	if err != nil {
 		panic(err)
 	}
 
-	duration, err := time.ParseDuration(args["--interval"].(string))
+	exchange, err := factory.NewExchangeWithConfig(symbol.Exchange(), map[string]interface{} {
+		"poll_duration": duration,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -58,27 +60,15 @@ func Ticker(args map[string]interface{}) {
 		panic(err)
 	}
 
-	// anonymous function to pull and format market stats
-	tick := func() {
-		data, err := market.Fetch()
-		if err != nil {
-			panic(err)
-		}
+	feed, err := market.Feed()
+	if err != nil {
+		panic(err)
+	}
+
+	for data := range feed.Channel() {
 		log.Printf("Last: %0.6f Ask: %.6f Bid %.6f Volume: %.2f",
 			data.Last(), data.Ask(), data.Bid(), data.Volume())
 	}
-
-	tick()
-	doneChan := make(chan bool)
-	ticker := time.NewTicker(duration)
-    go func() {
-        for _ = range ticker.C {
-        	tick()
-        }
-    }()
-
-    // block until timer is done
-    <- doneChan
 }
 
 func Symbols(args map[string]interface{}) {
