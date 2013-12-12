@@ -5,7 +5,7 @@ import (
     "encoding/json"
     "net/http"
     //"github.com/davecgh/go-spew/spew"
-    babel "github.com/lox/babelcoin/core"
+    babel "../util"
 )
 
 const (

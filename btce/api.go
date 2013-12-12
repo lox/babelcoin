@@ -14,7 +14,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	//"github.com/davecgh/go-spew/spew"
-	babel "github.com/lox/babelcoin/core"
+	babel "../util"
 )
 
 const (

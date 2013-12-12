@@ -3,8 +3,7 @@ package btce
 import (
 	"fmt"
 	"strings"
-    babel "github.com/lox/babelcoin/core"
-    util "github.com/lox/babelcoin/util"
+    babel "../util"
 )
 
 const (
@@ -36,7 +35,7 @@ func NewTradesApi(url string, currencies []string, limit int) *BtceTradesApi {
 func (t *BtceTradesApi) Trades() ([]Trade, error) {
 	var resp map[string][]Trade
 
-	error := util.HttpGetJson(fmt.Sprintf("%s%s?limit=%d",
+	error := babel.HttpGetJson(fmt.Sprintf("%s%s?limit=%d",
 		t.url, strings.Join(t.currencies, "-"), t.limit), &resp)
 
     if error != nil {

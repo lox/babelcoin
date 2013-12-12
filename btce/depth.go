@@ -1,8 +1,9 @@
 package btce
 
 import (
+	"fmt"
     //"github.com/davecgh/go-spew/spew"
-    util "github.com/lox/babelcoin/util"
+    babelcoin "../util"
 )
 
 const (
@@ -22,16 +23,20 @@ type OrderBook struct {
 type BtceDepthApi struct {
 	url 				string
 	currency 			string
+	limit				int
 }
 
-func NewDepthApi(url string, currency string) *BtceDepthApi {
-	return &BtceDepthApi{url, currency}
+func NewDepthApi(url string, currency string, limit int) *BtceDepthApi {
+	if limit > 2000 {
+		limit = 2000
+	}
+	return &BtceDepthApi{url, currency, limit}
 }
 
 func (d *BtceDepthApi) Orders() (OrderBook, error) {
 	var resp map[string]map[string][][]float64
 
-	error := util.HttpGetJson(d.url + d.currency, &resp)
+	error := babelcoin.HttpGetJson(fmt.Sprintf("%s?limit=%d",d.url + d.currency, d.limit), &resp)
     if error != nil {
     	return OrderBook{}, error
     }

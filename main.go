@@ -1,120 +1,82 @@
 package main
 
 import (
-	"github.com/spf13/cobra"
-	"github.com/davecgh/go-spew/spew"
-	"./btce"
-	"os"
+    "github.com/docopt/docopt.go"
+    //"github.com/davecgh/go-spew/spew"
+	"./factory"
+	"time"
+	"log"
 )
 
-func btceFromEnv() *btce.BtceApi {
-	key := os.Getenv("BTCE_KEY")
-	secret := os.Getenv("BTCE_SECRET")
-	return btce.NewBtceApi(btce.PrivateApiUrl, key, secret)
+func main() {
+usage := `Babelcoin. An interface to cryptocoin exchanges
+
+Usage:
+  babelcoin ticker <pair> [--interval=<duration>]
+  babelcoin currencies <pair> [--interval=<duration>]
+  babelcoin trade <pair> (BID|ASK) <amount> [price] [--timeout=<duration>]
+  babelcoin -h | --help
+  babelcoin --version
+
+Options:
+  -h --help     			Show this screen.
+  --version     			Show version.
+  -i --interval=<duration>  Time interval to use [default: 30s].
+  --timeout=<duration>  	A timeout to cancel the order by if not filled.`
+
+    args, err := docopt.Parse(usage, nil, true, "Babelcoin", false)
+    if err != nil {
+    	panic(err)
+    }
+
+    if _,ticker := args["ticker"]; ticker {
+    	Ticker(args)
+	}
 }
 
-func main() {
-	var BtceCmd = &cobra.Command{
-		Use:   "btce",
-		Short: "Interface to btc-e.com",
-		Long: "Interface to btc-e.com",
+func Ticker(args map[string]interface{}) {
+	pair := args["<pair>"].(string)
+	exchange, err := factory.NewExchange(pair)
+	if err != nil {
+		panic(err)
 	}
 
-	var Btce_BalancesCmd = &cobra.Command{
-		Use:   "balances",
-		Short: "Account balances on btc-e.com",
-		Run: func(cmd *cobra.Command, args []string) {
-			b := btceFromEnv()
-			info, error := b.GetInfo();
-			if error != nil {
-				panic(error)
-			}
-
-			spew.Dump(info)
-		},
+	duration, err := time.ParseDuration(args["--interval"].(string))
+	if err != nil {
+		panic(err)
 	}
 
-	var Btce_TransactionsCmd = &cobra.Command{
-		Use:   "transactions",
-		Short: "Transaction history on btc-e.com",
-		Run: func(cmd *cobra.Command, args []string) {
-			b := btceFromEnv()
-			info, error := b.TransHistory(map[string]string{
-				"count": "10",
-			});
-			if error != nil {
-				panic(error)
-			}
-
-			spew.Dump(info)
-		},
+	market, err := exchange.MarketData()
+	if err != nil {
+		panic(err)
 	}
 
-	var Btce_TradesCmd = &cobra.Command{
-		Use:   "trades",
-		Short: "Trade history on btc-e.com",
-		Run: func(cmd *cobra.Command, args []string) {
-			b := btceFromEnv()
-			info, error := b.TradeHistory(map[string]string{
-				"count": "10",
-			});
-			if error != nil {
-				panic(error)
-			}
-
-			spew.Dump(info)
-		},
+	// anonymous function to pull and format market stats
+	tick := func() {
+		data, err := market.Fetch()
+		if err != nil {
+			panic(err)
+		}
+		log.Printf("Last: %0.6f Ask: %.6f Bid %.6f",
+			data.Last(), data.Ask(), data.Bid())
 	}
 
-	var Btce_TradeCmd = &cobra.Command{
-		Use:   "trade",
-		Short: "Conduct a round-trip trade on btc-e.com",
-		Run: func(cmd *cobra.Command, args []string) {
-			b := btceFromEnv()
-			resp, error := b.Trade("ftc_btc", "buy", 0.0001, 1)
-			if error != nil {
-				panic(error)
-			}
-			spew.Dump(resp)
+	tick()
+	doneChan := make(chan bool)
+	ticker := time.NewTicker(duration)
+    go func() {
+        for _ = range ticker.C {
+        	tick()
+        }
+    }()
 
-			resp2, error2 := b.CancelOrder(resp.OrderId)
-			if error2 != nil {
-				panic(error2)
-			}
-			spew.Dump(resp2)
-		},
+    // block until timer is done
+    <- doneChan
+}
+
+func Currencies(args map[string]interface{}) {
+	exchange, err := factory.NewExchange(args["<exchange>"].(string))
+	if err != nil {
+		panic(err)
 	}
-
-	var Btce_TickerCmd = &cobra.Command{
-		Use:   "ticker",
-		Short: "Poll the ticker on btc-e.com",
-		Run: func(cmd *cobra.Command, args []string) {
-			//i := btce.NewInfoApi(btce.InfoUrl)
-			//info, _ := i.Pairs()
-			//spew.Dump(info)
-
-			t := btce.NewTradesApi(btce.TradesUrl, []string{"ltc_btc"}, 10)
-			trades, _ := t.Trades()
-
-			spew.Dump(trades)
-
-			b := btce.NewTickerApi(btce.TickerUrl, []string{"ltc_btc"})
-			candles, error := b.Candles()
-			if error != nil {
-				panic(error)
-			}
-
-			spew.Dump(candles)
-		},
-	}
-
-	BtceCmd.AddCommand(Btce_BalancesCmd)
-	BtceCmd.AddCommand(Btce_TransactionsCmd)
-	BtceCmd.AddCommand(Btce_TradesCmd)
-	BtceCmd.AddCommand(Btce_TradeCmd)
-	BtceCmd.AddCommand(Btce_TickerCmd)
-
-	var rootCmd = &cobra.Command{Use: "babelcoin"}
-	rootCmd.AddCommand(BtceCmd)
-	rootCmd.Execute()
 }

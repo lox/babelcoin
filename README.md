@@ -19,22 +19,28 @@ import "fmt"
 
 exchange := babelcoin.NewExchange("btce", "usd_ltc")
 
-// get a feed of orders
-feed := exchange.OrderFeed()
+// get the latest market data
+market, _ := exchange.MarketData()
 
 // feed is just a go channel
-for order := range feed {
-	fmt.Printf("Order: Amount: %.2f Price: %.2f\n", order.Amount, order.Price)
+for data := range market.Feed() {
+	fmt.Printf("Last: %.6f\n", data.Last())
 }
 
-// place a limit order
-limitOrder := exchange.NewLimitOrder(100.0, 11.0)
-limitOrder.Execute()
-
-// place a market order
-marketOrder := exchange.NewLimitOrder(100.0, 11.0)
-marketOrder.Execute()
+// place a limit bid order
+limitOrder := exchange.NewLimitBid(100.0, 11.0)
+trades, err := limitOrder.Execute()
 ```
+
+Supported Exchanges
+-------------------
+
+ * BTC-e
+   * Account / Trading
+   * Trades
+   * Order Book
+   * Market Data
+
 
 
 

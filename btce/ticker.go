@@ -2,16 +2,17 @@ package btce
 
 import (
 	"strings"
+	"errors"
+	"encoding/json"
     //"github.com/davecgh/go-spew/spew"
-    babel "github.com/lox/babelcoin/core"
-    util "github.com/lox/babelcoin/util"
+    babel "../util"
 )
 
 const (
 	TickerUrl = "https://btc-e.com/api/3/ticker/"
 )
 
-type Candle struct {
+type MarketData struct {
 	Pair 				string				`json:"-"`
 	High 				float64				`json:"high"`
 	Low 				float64 			`json:"low"`
@@ -33,20 +34,31 @@ func NewTickerApi(url string, currencies []string) *BtceTickerApi {
 	return &BtceTickerApi{url, currencies}
 }
 
-func (t *BtceTickerApi) Candles() ([]Candle, error) {
-	var resp map[string]Candle
+func (t *BtceTickerApi) MarketData() ([]MarketData, error) {
+	var resp map[string]MarketData
 
-	error := util.HttpGetJson(t.url + strings.Join(t.currencies, "-"), &resp)
+	error := babel.HttpGetJson(t.url + strings.Join(t.currencies, "-"), &resp)
     if error != nil {
-    	return nil, error
+    	var errorResp = &struct{
+    		Success int
+    		Error string
+    	}{}
+
+    	// check if we got an error encoded in json
+    	error2 := json.Unmarshal(error.ResponseBody, &errorResp)
+	    if error2 == nil {
+	    	return nil, errors.New(errorResp.Error)
+	    }
+
+    	return nil, error2
     }
 
-    var candles []Candle
+    var data []MarketData
 
-    for pair, candle := range resp {
-    	candle.Pair = pair
-    	candles = append(candles, candle)
+    for pair, row := range resp {
+    	row.Pair = pair
+    	data = append(data, row)
     }
 
-	return candles, nil
+	return data, nil
 }

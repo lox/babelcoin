@@ -18,7 +18,7 @@ func TestTicker(t *testing.T) {
 			io.WriteString(w, json)
 		}))
 
-		Convey(`Ticker should return candles`, func() {
+		Convey(`Ticker should return data`, func() {
 			ticker := NewTickerApi(server.URL+"/", []string{"btc_usd"})
 			json = `{ "btc_usd": {
 					"High": 109.88,
@@ -33,12 +33,24 @@ func TestTicker(t *testing.T) {
 				}
 			}`
 
-			candles, error := ticker.Candles()
+			data, error := ticker.MarketData()
 
 			So(error, ShouldBeNil)
-			So(len(candles) , ShouldEqual, 1)
-			So(candles[0].Pair, ShouldEqual, "btc_usd")
+			So(len(data) , ShouldEqual, 1)
+			So(data[0].Pair, ShouldEqual, "btc_usd")
 		})
+
+		Convey(`Ticker should fail with invalid pairs`, func() {
+			ticker := NewTickerApi(server.URL+"/", []string{"aaa_bbb"})
+			json = `{"success":0, "error":"Invalid pair name: aaa_bbb"}`
+
+			data, error := ticker.MarketData()
+
+			So(error, ShouldNotBeNil)
+			So(error.Error(), ShouldEqual, "Invalid pair name: aaa_bbb")
+			So(len(data), ShouldEqual, 0)
+		})
+
 	})
 }
 
