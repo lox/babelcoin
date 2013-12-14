@@ -3,7 +3,7 @@ package btce
 import (
 	"fmt"
 	//"github.com/davecgh/go-spew/spew"
-	babelcoin "../util"
+	babelcoin "../../util"
 )
 
 const (

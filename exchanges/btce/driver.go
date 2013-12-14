@@ -1,7 +1,7 @@
 package btce
 
 import (
-	"../core"
+	"../../core"
 	"time"
 )
 

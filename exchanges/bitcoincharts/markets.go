@@ -1,7 +1,7 @@
 package bitcoincharts
 
 import (
-	babel "../util"
+	babel "../../util"
 )
 
 const (

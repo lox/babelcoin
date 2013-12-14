@@ -1,7 +1,7 @@
 package bitcoincharts
 
 import (
-	"../core"
+	"../../core"
 	"errors"
 	"time"
 )

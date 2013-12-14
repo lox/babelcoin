@@ -1,7 +1,7 @@
 package btce
 
 import (
-	babel "../util"
+	babel "../../util"
 	"fmt"
 	"strings"
 )
