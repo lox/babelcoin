@@ -1,24 +1,45 @@
 package bitcoincharts
 
 import (
-	"../../core"
-	"errors"
+	//"github.com/davecgh/go-spew/spew"
+	babel "../../core"
+	util "../../util"
+	//"errors"
 	"time"
 )
 
-type Exchange struct {
+type Driver struct {
 	config map[string]interface{}
 }
 
-func NewExchange(config map[string]interface{}) *Exchange {
-	return &Exchange{config}
+func NewDriver(config map[string]interface{}) *Driver {
+	return &Driver{config}
 }
 
-func (b *Exchange) MarketData(symbol string) (babelcoin.MarketDataService, error) {
-	return &MarketDataService{b, symbol}, nil
+func (b *Driver) Ticker(symbol string) (chan babel.MarketData, chan bool, error) {
+	api := NewMarketsApi(MarketUrl)
+
+	duration, ok := b.config["poll_duration"].(time.Duration)
+	if !ok {
+		duration = time.Duration(5) * time.Second
+	}
+
+	channel, quit, err := util.Poller(duration, func() babel.MarketData{
+		markets, err := api.Markets()
+		if err != nil {
+			panic(err)
+		}
+		return &MarketDataAdaptor{markets[symbol]}
+	})
+
+	if err != nil {
+		return channel, quit, err
+	}
+
+	return channel, quit, nil
 }
 
-func (b *Exchange) Symbols() ([]string, error) {
+func (b *Driver) Symbols() ([]string, error) {
 	api := NewMarketsApi(MarketUrl)
 	markets, err := api.Markets()
 	if err != nil {
@@ -34,55 +55,28 @@ func (b *Exchange) Symbols() ([]string, error) {
 	return symbols, nil
 }
 
-type MarketDataService struct {
-	exchange *Exchange
-	symbol   string
-}
-
-func (b *MarketDataService) Fetch() (babelcoin.MarketData, error) {
-	api := NewMarketsApi(MarketUrl)
-	markets, err := api.Markets()
-	if err != nil {
-		return nil, err
-	}
-
-	market, ok := markets[b.symbol]
-	if !ok {
-		return nil, errors.New("No market data found for " + b.symbol)
-	}
-
-	return &BitcoinChartsMarketData{market}, nil
-}
-
-func (b *MarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
-	duration, ok := b.exchange.config["poll_duration"]
-	if !ok {
-		duration = time.Duration(10) * time.Second
-	}
-
-	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil
-}
-
-type BitcoinChartsMarketData struct {
+type MarketDataAdaptor struct {
 	data Market
 }
 
-func (d *BitcoinChartsMarketData) Ask() float64 {
+func (d *MarketDataAdaptor) Ask() float64 {
 	return d.data.Ask
 }
 
-func (d *BitcoinChartsMarketData) Bid() float64 {
+func (d *MarketDataAdaptor) Bid() float64 {
 	return d.data.Bid
 }
 
-func (d *BitcoinChartsMarketData) Last() float64 {
+func (d *MarketDataAdaptor) Last() float64 {
 	return d.data.Close
 }
 
-func (d *BitcoinChartsMarketData) Volume() float64 {
+func (d *MarketDataAdaptor) Volume() float64 {
 	return d.data.Volume
 }
 
-func (d *BitcoinChartsMarketData) Updated() time.Time {
+func (d *MarketDataAdaptor) Updated() time.Time {
 	return d.data.LatestTrade.Time
 }
+
+

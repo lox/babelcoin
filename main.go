@@ -55,17 +55,12 @@ func Ticker(args map[string]interface{}) {
 		panic(err)
 	}
 
-	market, err := exchange.MarketData(pair)
+	ticker, _, err := exchange.Ticker(pair)
 	if err != nil {
 		panic(err)
 	}
 
-	feed, err := market.Feed()
-	if err != nil {
-		panic(err)
-	}
-
-	for data := range feed.Channel() {
+	for data := range ticker {
 		log.Printf("Last: %0.6f Ask: %.6f Bid %.6f Volume: %.2f",
 			data.Last(), data.Ask(), data.Bid(), data.Volume())
 	}

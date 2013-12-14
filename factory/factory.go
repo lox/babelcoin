@@ -15,17 +15,17 @@ func NewExchange(exchange string) (core.Exchange, error) {
 func NewExchangeWithConfig(exchange string, config map[string]interface{}) (core.Exchange, error) {
 	switch exchange {
 	case "btce":
-		exchange, err := btce.NewExchange(merge(config, map[string]interface{}{
+		driver, err := btce.NewDriver(merge(config, map[string]interface{}{
 			"key":    getEnv("BTCE_KEY", true),
 			"secret": getEnv("BTCE_SECRET", true),
 		}))
 		if err != nil {
 			return nil, err
 		} else {
-			return exchange, nil
+			return driver, nil
 		}
 	case "bitcoincharts":
-		return bitcoincharts.NewExchange(config), nil
+		return bitcoincharts.NewDriver(config), nil
 	default:
 		return nil, errors.New("Unknown exchange " + exchange)
 	}

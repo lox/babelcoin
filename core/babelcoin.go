@@ -13,15 +13,6 @@ type MarketData interface {
 }
 
 type Exchange interface {
-	MarketData(symbol string) (MarketDataService, error)
+	Ticker(symbol string) (chan MarketData, chan bool, error)
 	Symbols() ([]string, error)
-}
-
-type MarketDataService interface {
-	Fetch() (MarketData, error)
-	Feed() (MarketDataFeed, error)
-}
-
-type MarketDataFeed interface {
-	Channel() chan MarketData
 }

@@ -1,25 +1,21 @@
 package btce
 
 import (
-	"../../core"
+	//"github.com/davecgh/go-spew/spew"
+	babel "../../core"
+	util "../../util"
 	"time"
 )
 
-type BtceExchange struct {
+type Driver struct {
 	config map[string]interface{}
 }
 
-func NewExchange(config map[string]interface{}) (*BtceExchange, error) {
-	return &BtceExchange{config: nil}, nil
+func NewDriver(config map[string]interface{}) (*Driver, error) {
+	return &Driver{config}, nil
 }
 
-func (b *BtceExchange) MarketData(pair string) (babelcoin.MarketDataService, error) {
-	return &BtceMarketDataService{
-		NewTickerApi(TickerUrl, []string{pair}), b,
-	}, nil
-}
-
-func (b *BtceExchange) Symbols() ([]string, error) {
+func (b *Driver) Symbols() ([]string, error) {
 	api := NewInfoApi(InfoUrl)
 	pairs, error := api.Pairs()
 	if error != nil {
@@ -34,48 +30,49 @@ func (b *BtceExchange) Symbols() ([]string, error) {
 	return symbols, nil
 }
 
-type BtceMarketDataService struct {
-	ticker   *BtceTickerApi
-	exchange *BtceExchange
-}
+func (b *Driver) Ticker(symbol string) (chan babel.MarketData, chan bool, error) {
+	api := NewTickerApi(TickerUrl, []string{symbol})
 
-func (b *BtceMarketDataService) Fetch() (babelcoin.MarketData, error) {
-	data, err := b.ticker.MarketData()
-	if err != nil {
-		return nil, err
-	}
-	return &BtceMarketData{data[0]}, nil
-}
-
-func (b *BtceMarketDataService) Feed() (babelcoin.MarketDataFeed, error) {
-	duration, ok := b.exchange.config["poll_duration"]
+	duration, ok := b.config["poll_duration"].(time.Duration)
 	if !ok {
-		duration = time.Duration(10) * time.Second
+		duration = time.Duration(5) * time.Second
 	}
 
-	return babelcoin.NewMarketDataServicePoller(b, duration.(time.Duration)), nil
+	channel, quit, err := util.Poller(duration, func() babel.MarketData{
+		data, err := api.MarketData()
+		if err != nil {
+			panic(err)
+		}
+		return &MarketDataAdaptor{data[0]}
+	})
+
+	if err != nil {
+		return channel, quit, err
+	}
+
+	return channel, quit, nil
 }
 
-type BtceMarketData struct {
+type MarketDataAdaptor struct {
 	data MarketData
 }
 
-func (d *BtceMarketData) Ask() float64 {
+func (d *MarketDataAdaptor) Ask() float64 {
 	return d.data.Sell
 }
 
-func (d *BtceMarketData) Bid() float64 {
+func (d *MarketDataAdaptor) Bid() float64 {
 	return d.data.Buy
 }
 
-func (d *BtceMarketData) Last() float64 {
+func (d *MarketDataAdaptor) Last() float64 {
 	return d.data.Last
 }
 
-func (d *BtceMarketData) Volume() float64 {
+func (d *MarketDataAdaptor) Volume() float64 {
 	return d.data.Volume
 }
 
-func (d *BtceMarketData) Updated() time.Time {
+func (d *MarketDataAdaptor) Updated() time.Time {
 	return d.data.Updated.Time
 }
