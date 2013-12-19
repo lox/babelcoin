@@ -1,6 +1,7 @@
 package btce
 
 import (
+	babel "../../util"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha512"
@@ -10,11 +11,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	// "net/http/httputil"
 	"net/url"
 	"strconv"
 	"time"
-	//"github.com/davecgh/go-spew/spew"
-	babel "../../util"
 )
 
 const (
@@ -117,6 +117,11 @@ func (b *BtceApi) marshalResponse(resp *http.Response, v interface{}) error {
 		return error
 	}
 
+	// sometimes, btc-e returns a non-json error
+	if string(bytes) == "invalid POST data" {
+		return errors.New("Request failed: invalid post data")
+	}
+
 	data := &struct {
 		Success int
 		Return  json.RawMessage
@@ -152,6 +157,9 @@ func (b *BtceApi) apiCall(method string, v interface{}, params map[string]string
 	r.Header.Add("Key", b.key)
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r.Header.Add("Content-Length", strconv.Itoa(len(postData)))
+
+	// bytes, _ := httputil.DumpRequest(r, true)
+	// spew.Printf("%s", bytes)
 
 	resp, error := client.Do(r)
 	if error != nil {
@@ -204,7 +212,7 @@ func (b *BtceApi) TradeHistory(params map[string]string) ([]TradeHistoryResponse
 		return nil, error
 	}
 
-	var trades []TradeHistoryResponse
+	trades := []TradeHistoryResponse{}
 
 	for id, trade := range resp {
 		idInt, error := strconv.Atoi(id)
@@ -247,6 +255,10 @@ func (b *BtceApi) ActiveOrders(pair string) ([]ActiveOrdersResponse, error) {
 
 // performs a trade
 func (b *BtceApi) Trade(pair string, t string, rate float64, amount float64) (TradeResponse, error) {
+	if t != "buy" && t != "sell" {
+		return TradeResponse{}, errors.New("t must be either buy or sell")
+	}
+
 	var resp = TradeResponse{}
 	error := b.apiCall("Trade", &resp, map[string]string{
 		"pair":   pair,
@@ -262,11 +274,11 @@ func (b *BtceApi) Trade(pair string, t string, rate float64, amount float64) (Tr
 }
 
 // cancels an order
-func (b *BtceApi) CancelOrder(tradeId int) (CancelOrderResponse, error) {
+func (b *BtceApi) CancelOrder(orderId int) (CancelOrderResponse, error) {
 	var resp = CancelOrderResponse{}
 
 	error := b.apiCall("CancelOrder", &resp, map[string]string{
-		"order_id": strconv.Itoa(tradeId),
+		"order_id": strconv.Itoa(orderId),
 	})
 	if error != nil {
 		return resp, error

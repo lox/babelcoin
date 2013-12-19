@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	// "net/http/httputil"
+	"net/url"
 	"testing"
-	//"github.com/davecgh/go-spew/spew"
+	// "github.com/davecgh/go-spew/spew"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -14,6 +16,7 @@ func TestApiSpec(t *testing.T) {
 	Convey("Subject: BTC-e Private API", t, func() {
 
 		json := `{"success":0,"error":"llamas be trippin"}`
+		var handler func(r *http.Request, body []byte)
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
@@ -32,6 +35,9 @@ func TestApiSpec(t *testing.T) {
 				http.Error(w, `{"success":0,"error":"Invalid signature"}`,
 					http.StatusInternalServerError)
 			} else {
+				if handler != nil {
+					handler(r, body)
+				}
 				io.WriteString(w, json)
 			}
 		}))
@@ -131,6 +137,15 @@ func TestApiSpec(t *testing.T) {
 		})
 
 		Convey(`Trade should return funds`, func() {
+			handler = func(r *http.Request, body []byte) {
+				values, err := url.ParseQuery(string(body))
+				So(err, ShouldBeNil)
+				So(values.Get("rate"), ShouldEqual, "1")
+				So(values.Get("amount"), ShouldEqual, "10.5")
+				So(values.Get("pair"), ShouldEqual, "btc_usd")
+				So(values.Get("type"), ShouldEqual, "buy")
+			}
+
 			btce := NewBtceApi(server.URL, "valid", "credentials")
 			json = `{ "success":1,
 				"return":{
@@ -146,7 +161,7 @@ func TestApiSpec(t *testing.T) {
 						"nmc":0
 				}}}`
 
-			trade, error := btce.Trade("btc_usd", "buy", 1000.0, 1)
+			trade, error := btce.Trade("btc_usd", "buy", 1.0, 10.5)
 
 			So(error, ShouldBeNil)
 			So(trade.OrderId, ShouldEqual, 10)
@@ -155,6 +170,8 @@ func TestApiSpec(t *testing.T) {
 		})
 
 		Convey(`CancelOrder should return funds`, func() {
+			handler = func(r *http.Request, body []byte) {}
+
 			btce := NewBtceApi(server.URL, "valid", "credentials")
 			json = `{ "success":1,
 				"return":{

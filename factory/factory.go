@@ -1,9 +1,9 @@
 package factory
 
 import (
+	core "../core"
 	"../exchanges/bitcoincharts"
 	"../exchanges/btce"
-	core "../core"
 	"errors"
 	"os"
 )

@@ -1,7 +1,6 @@
 package bitcoincharts
 
 import (
-	//"github.com/davecgh/go-spew/spew"
 	babel "../../core"
 	util "../../util"
 	//"errors"
@@ -24,7 +23,7 @@ func (b *Driver) Ticker(symbol string) (chan babel.MarketData, chan bool, error)
 		duration = time.Duration(5) * time.Second
 	}
 
-	channel, quit, err := util.Poller(duration, func() babel.MarketData{
+	channel, quit, err := util.Poller(duration, func() babel.MarketData {
 		markets, err := api.Markets()
 		if err != nil {
 			panic(err)
@@ -55,6 +54,14 @@ func (b *Driver) Symbols() ([]string, error) {
 	return symbols, nil
 }
 
+func (b *Driver) Buy(symbol string, amount float64, price float64) babel.Order {
+	panic("Bid() not supported")
+}
+
+func (b *Driver) Sell(symbol string, amount float64, price float64) babel.Order {
+	panic("Ask() not supported")
+}
+
 type MarketDataAdaptor struct {
 	data Market
 }
@@ -78,5 +85,3 @@ func (d *MarketDataAdaptor) Volume() float64 {
 func (d *MarketDataAdaptor) Updated() time.Time {
 	return d.data.LatestTrade.Time
 }
-
-

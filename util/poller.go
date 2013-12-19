@@ -1,8 +1,8 @@
 package babelcoin
 
 import (
-	"time"
 	. "../core"
+	"time"
 )
 
 func Poller(freq time.Duration, fetch func() MarketData) (chan MarketData, chan bool, error) {
@@ -13,12 +13,12 @@ func Poller(freq time.Duration, fetch func() MarketData) (chan MarketData, chan 
 
 	go func() {
 		for _ = range ticker.C {
-	        select {
-	        case <- quit:
-	            break
-	        default:
-	        	channel <- fetch()
-	        }
+			select {
+			case <-quit:
+				break
+			default:
+				channel <- fetch()
+			}
 		}
 	}()
 

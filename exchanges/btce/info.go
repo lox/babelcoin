@@ -1,9 +1,6 @@
 package btce
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
 	//"github.com/davecgh/go-spew/spew"
 	babel "../../util"
 )
@@ -13,17 +10,17 @@ const (
 )
 
 type InfoResponse struct {
-	Pairs      map[string]CurrencyPair `json:"Pairs"`
-	ServerTime babel.Timestamp         `json:"Server_time"`
+	Pairs      map[string]CurrencyPair `json:"pairs"`
+	ServerTime babel.Timestamp         `json:"server_time"`
 }
 
 type CurrencyPair struct {
-	DecimalPlaces int     `json:"Decimal_places"`
-	MinPrice      float64 `json:"Min_price"`
-	MaxPrice      float64 `json:"Max_price"`
-	MinAmount     float64 `json:"Min_amount"`
-	Hidden        float64 `json:"Hidden"`
-	Fee           float64 `json:"Fee"`
+	DecimalPlaces int     `json:"decimal_places"`
+	MinPrice      float64 `json:"min_price"`
+	MaxPrice      float64 `json:"max_price"`
+	MinAmount     float64 `json:"min_amount"`
+	Hidden        float64 `json:"hidden"`
+	Fee           float64 `json:"fee"`
 }
 
 type BtceInfoApi struct {
@@ -35,23 +32,11 @@ func NewInfoApi(url string) *BtceInfoApi {
 }
 
 func (ticker *BtceInfoApi) Pairs() (map[string]CurrencyPair, error) {
-	var data InfoResponse
+	var resp InfoResponse
 
-	resp, error := http.Get(ticker.url)
-	if error != nil {
-		return data.Pairs, error
+	if err := babel.HttpGetJson(ticker.url, &resp); err != nil {
+		return nil, err
 	}
 
-	// read the response
-	defer resp.Body.Close()
-	bytes, error := ioutil.ReadAll(resp.Body)
-	if error != nil {
-		return data.Pairs, error
-	}
-
-	if error = json.Unmarshal(bytes, &data); error != nil {
-		return data.Pairs, error
-	}
-
-	return data.Pairs, nil
+	return resp.Pairs, nil
 }
