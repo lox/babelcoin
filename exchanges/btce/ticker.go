@@ -37,20 +37,20 @@ func NewTickerApi(url string, currencies []string) *BtceTickerApi {
 func (t *BtceTickerApi) MarketData() ([]MarketData, error) {
 	var resp map[string]MarketData
 
-	error := babel.HttpGetJson(t.url+strings.Join(t.currencies, "-"), &resp)
-	if error != nil {
+	err := babel.HttpGetJson(t.url+strings.Join(t.currencies, "-"), &resp)
+	if err != nil {
 		var errorResp = &struct {
 			Success int
 			Error   string
 		}{}
 
 		// check if we got an error encoded in json
-		error2 := json.Unmarshal(error.ResponseBody, &errorResp)
-		if error2 == nil {
+		err2 := json.Unmarshal(err.ResponseBody, &errorResp)
+		if err2 == nil {
 			return nil, errors.New(errorResp.Error)
 		}
 
-		return nil, error2
+		return nil, err2
 	}
 
 	var data []MarketData

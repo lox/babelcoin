@@ -50,15 +50,15 @@ func TestApiSpec(t *testing.T) {
 				"server_time": 1386741355
 			}}`
 
-			_, error := btce.GetInfo()
-			So(error, ShouldBeNil)
+			_, err := btce.GetInfo()
+			So(err, ShouldBeNil)
 		})
 
 		Convey(`GetInfo with invalid credentials shouldn't work`, func() {
 			btce := NewBtceApi(server.URL, "invalid", "llamas")
-			_, error := btce.GetInfo()
+			_, err := btce.GetInfo()
 
-			So(error, ShouldNotBeNil)
+			So(err, ShouldNotBeNil)
 		})
 
 		Convey(`GetInfo should return funds`, func() {
@@ -70,9 +70,9 @@ func TestApiSpec(t *testing.T) {
 				"server_time": 1342448420
 			}}`
 
-			info, error := btce.GetInfo()
+			info, err := btce.GetInfo()
 
-			So(error, ShouldBeNil)
+			So(err, ShouldBeNil)
 			So(info.Funds["usd"], ShouldEqual, 101)
 		})
 
@@ -89,8 +89,8 @@ func TestApiSpec(t *testing.T) {
 						"timestamp":1342448420
 					}}}`
 
-			transactions, error := btce.TransHistory(map[string]string{})
-			So(error, ShouldBeNil)
+			transactions, err := btce.TransHistory(map[string]string{})
+			So(err, ShouldBeNil)
 			So(len(transactions), ShouldEqual, 1)
 			So(transactions[0].Id, ShouldEqual, 1081672)
 			So(transactions[0].Amount, ShouldEqual, 1)
@@ -112,8 +112,8 @@ func TestApiSpec(t *testing.T) {
 						"timestamp":1342445793
 					}}}`
 
-			trades, error := btce.TradeHistory(map[string]string{})
-			So(error, ShouldBeNil)
+			trades, err := btce.TradeHistory(map[string]string{})
+			So(err, ShouldBeNil)
 			So(len(trades), ShouldEqual, 1)
 		})
 
@@ -130,9 +130,9 @@ func TestApiSpec(t *testing.T) {
 						"status":0
 					}}}`
 
-			trades, error := btce.ActiveOrders("btc_usd")
+			trades, err := btce.ActiveOrders("btc_usd")
 
-			So(error, ShouldBeNil)
+			So(err, ShouldBeNil)
 			So(len(trades), ShouldEqual, 1)
 		})
 
@@ -161,9 +161,9 @@ func TestApiSpec(t *testing.T) {
 						"nmc":0
 				}}}`
 
-			trade, error := btce.Trade("btc_usd", "buy", 1.0, 10.5)
+			trade, err := btce.Trade("btc_usd", "buy", 1.0, 10.5)
 
-			So(error, ShouldBeNil)
+			So(err, ShouldBeNil)
 			So(trade.OrderId, ShouldEqual, 10)
 			So(trade.Received, ShouldEqual, 0.1)
 			So(trade.Remains, ShouldEqual, 0)
@@ -185,9 +185,9 @@ func TestApiSpec(t *testing.T) {
 						"nmc":0
 					}}}`
 
-			result, error := btce.CancelOrder(343154)
+			result, err := btce.CancelOrder(343154)
 
-			So(error, ShouldBeNil)
+			So(err, ShouldBeNil)
 			So(result.OrderId, ShouldEqual, 343154)
 		})
 	})

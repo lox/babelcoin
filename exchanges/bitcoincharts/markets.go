@@ -35,9 +35,9 @@ func NewMarketsApi(url string) *MarketsApi {
 func (t *MarketsApi) Markets() (map[string]Market, error) {
 	var resp []Market
 
-	error := babel.HttpGetJson(t.url, &resp)
-	if error != nil {
-		return nil, error
+	err := babel.HttpGetJson(t.url, &resp)
+	if err != nil {
+		return nil, err
 	}
 
 	markets := map[string]Market{}

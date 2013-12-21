@@ -30,9 +30,9 @@ func NewDriver(config map[string]interface{}) (*Driver, error) {
 
 func (b *Driver) Symbols() ([]string, error) {
 	api := NewInfoApi(b.config["info_url"].(string))
-	pairs, error := api.Pairs()
-	if error != nil {
-		return []string{}, error
+	pairs, err := api.Pairs()
+	if err != nil {
+		return []string{}, err
 	}
 
 	var symbols []string

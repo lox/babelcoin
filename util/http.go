@@ -17,14 +17,14 @@ func (e *HttpError) Error() string {
 }
 
 func HttpGetJson(url string, m interface{}) *HttpError {
-	bytes, error := HttpDurableGet(url, 10)
+	bytes, err := HttpDurableGet(url, 10)
 
-	if error != nil {
-		return &HttpError{error, bytes}
+	if err != nil {
+		return &HttpError{err, bytes}
 	}
 
-	if error = json.Unmarshal(bytes, &m); error != nil {
-		return &HttpError{error, bytes}
+	if err = json.Unmarshal(bytes, &m); err != nil {
+		return &HttpError{err, bytes}
 	}
 
 	return nil
