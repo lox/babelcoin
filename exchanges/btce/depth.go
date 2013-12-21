@@ -36,9 +36,9 @@ func NewDepthApi(url string, currency string, limit int) *BtceDepthApi {
 func (d *BtceDepthApi) Orders() (OrderBook, error) {
 	var resp map[string]map[string][][]float64
 
-	error := babelcoin.HttpGetJson(fmt.Sprintf("%s?limit=%d", d.url+d.currency, d.limit), &resp)
-	if error != nil {
-		return OrderBook{}, error
+	err := babelcoin.HttpGetJson(fmt.Sprintf("%s?limit=%d", d.url+d.currency, d.limit), &resp)
+	if err != nil {
+		return OrderBook{}, err
 	}
 
 	var book OrderBook

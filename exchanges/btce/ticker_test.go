@@ -33,9 +33,9 @@ func TestTicker(t *testing.T) {
 				}
 			}`
 
-			data, error := ticker.MarketData()
+			data, err := ticker.MarketData()
 
-			So(error, ShouldBeNil)
+			So(err, ShouldBeNil)
 			So(len(data), ShouldEqual, 1)
 			So(data[0].Pair, ShouldEqual, "btc_usd")
 		})
@@ -44,10 +44,10 @@ func TestTicker(t *testing.T) {
 			ticker := NewTickerApi(server.URL+"/", []string{"aaa_bbb"})
 			json = `{"success":0, "error":"Invalid pair name: aaa_bbb"}`
 
-			data, error := ticker.MarketData()
+			data, err := ticker.MarketData()
 
-			So(error, ShouldNotBeNil)
-			So(error.Error(), ShouldEqual, "Invalid pair name: aaa_bbb")
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "Invalid pair name: aaa_bbb")
 			So(len(data), ShouldEqual, 0)
 		})
 

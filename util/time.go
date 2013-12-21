@@ -12,8 +12,8 @@ type Timestamp struct {
 func (t *Timestamp) UnmarshalJSON(b []byte) error {
 	var unixtime int64
 
-	if error := json.Unmarshal(b, &unixtime); error != nil {
-		return error
+	if err := json.Unmarshal(b, &unixtime); err != nil {
+		return err
 	}
 
 	t.Time = time.Unix(unixtime, 0)

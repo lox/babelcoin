@@ -35,11 +35,11 @@ func NewTradesApi(url string, currencies []string, limit int) *BtceTradesApi {
 func (t *BtceTradesApi) Trades() ([]Trade, error) {
 	var resp map[string][]Trade
 
-	error := babel.HttpGetJson(fmt.Sprintf("%s%s?limit=%d",
+	err := babel.HttpGetJson(fmt.Sprintf("%s%s?limit=%d",
 		t.url, strings.Join(t.currencies, "-"), t.limit), &resp)
 
-	if error != nil {
-		return nil, error
+	if err != nil {
+		return nil, err
 	}
 
 	var trades []Trade

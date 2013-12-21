@@ -112,9 +112,9 @@ func (b *BtceApi) encodePostData(method string, params map[string]string) string
 func (b *BtceApi) marshalResponse(resp *http.Response, v interface{}) error {
 	// read the response
 	defer resp.Body.Close()
-	bytes, error := ioutil.ReadAll(resp.Body)
-	if error != nil {
-		return error
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
 	}
 
 	// sometimes, btc-e returns a non-json error
@@ -128,16 +128,16 @@ func (b *BtceApi) marshalResponse(resp *http.Response, v interface{}) error {
 		Error   string
 	}{}
 
-	if error = json.Unmarshal(bytes, &data); error != nil {
-		return error
+	if err = json.Unmarshal(bytes, &data); err != nil {
+		return err
 	}
 
 	if data.Success != 1 {
 		return errors.New("Request failed: " + data.Error)
 	}
 
-	if error = json.Unmarshal(data.Return, &v); error != nil {
-		return error
+	if err = json.Unmarshal(data.Return, &v); err != nil {
+		return err
 	}
 
 	return nil
@@ -148,9 +148,9 @@ func (b *BtceApi) apiCall(method string, v interface{}, params map[string]string
 	client := &http.Client{}
 	postData := b.encodePostData(method, params)
 
-	r, error := http.NewRequest("POST", b.url, bytes.NewBufferString(postData))
-	if error != nil {
-		return error
+	r, err := http.NewRequest("POST", b.url, bytes.NewBufferString(postData))
+	if err != nil {
+		return err
 	}
 
 	r.Header.Add("Sign", Sign(b.secret, postData))
@@ -161,9 +161,9 @@ func (b *BtceApi) apiCall(method string, v interface{}, params map[string]string
 	// bytes, _ := httputil.DumpRequest(r, true)
 	// spew.Printf("%s", bytes)
 
-	resp, error := client.Do(r)
-	if error != nil {
-		return error
+	resp, err:= client.Do(r)
+	if err!= nil {
+		return err
 	}
 
 	return b.marshalResponse(resp, v)
@@ -191,9 +191,9 @@ func (b *BtceApi) TransHistory(params map[string]string) ([]TransHistoryResponse
 	var transactions []TransHistoryResponse
 
 	for id, trans := range resp {
-		idInt, error := strconv.Atoi(id)
-		if error != nil {
-			return nil, error
+		idInt, err:= strconv.Atoi(id)
+		if err!= nil {
+			return nil, err
 		}
 
 		trans.Id = idInt
@@ -207,17 +207,17 @@ func (b *BtceApi) TransHistory(params map[string]string) ([]TransHistoryResponse
 func (b *BtceApi) TradeHistory(params map[string]string) ([]TradeHistoryResponse, error) {
 	resp := map[string]TradeHistoryResponse{}
 
-	error := b.apiCall("TradeHistory", &resp, params)
-	if error != nil {
-		return nil, error
+	err := b.apiCall("TradeHistory", &resp, params)
+	if err != nil {
+		return nil, err
 	}
 
 	trades := []TradeHistoryResponse{}
 
 	for id, trade := range resp {
-		idInt, error := strconv.Atoi(id)
-		if error != nil {
-			return nil, error
+		idInt, err := strconv.Atoi(id)
+		if err != nil {
+			return nil, err
 		}
 
 		trade.Id = idInt
@@ -231,19 +231,19 @@ func (b *BtceApi) TradeHistory(params map[string]string) ([]TradeHistoryResponse
 func (b *BtceApi) ActiveOrders(pair string) ([]ActiveOrdersResponse, error) {
 	var resp map[string]ActiveOrdersResponse
 
-	error := b.apiCall("ActiveOrders", &resp, map[string]string{
+	err := b.apiCall("ActiveOrders", &resp, map[string]string{
 		"pair": pair,
 	})
-	if error != nil {
-		return nil, error
+	if err != nil {
+		return nil, err
 	}
 
 	var orders []ActiveOrdersResponse
 
 	for id, order := range resp {
-		idInt, error := strconv.Atoi(id)
-		if error != nil {
-			return nil, error
+		idInt, err := strconv.Atoi(id)
+		if err != nil {
+			return nil, err
 		}
 
 		order.OrderId = idInt
@@ -260,14 +260,14 @@ func (b *BtceApi) Trade(pair string, t string, rate float64, amount float64) (Tr
 	}
 
 	var resp = TradeResponse{}
-	error := b.apiCall("Trade", &resp, map[string]string{
+	err := b.apiCall("Trade", &resp, map[string]string{
 		"pair":   pair,
 		"type":   t,
 		"rate":   strconv.FormatFloat(rate, 'f', -1, 64),
 		"amount": strconv.FormatFloat(amount, 'f', -1, 64),
 	})
-	if error != nil {
-		return resp, error
+	if err != nil {
+		return resp, err
 	}
 
 	return resp, nil
@@ -277,11 +277,11 @@ func (b *BtceApi) Trade(pair string, t string, rate float64, amount float64) (Tr
 func (b *BtceApi) CancelOrder(orderId int) (CancelOrderResponse, error) {
 	var resp = CancelOrderResponse{}
 
-	error := b.apiCall("CancelOrder", &resp, map[string]string{
+	err := b.apiCall("CancelOrder", &resp, map[string]string{
 		"order_id": strconv.Itoa(orderId),
 	})
-	if error != nil {
-		return resp, error
+	if err != nil {
+		return resp, err
 	}
 
 	return resp, nil
