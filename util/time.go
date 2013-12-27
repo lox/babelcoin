@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-type Timestamp struct {
+type UnixTime struct {
 	time.Time
 }
 
-func (t *Timestamp) UnmarshalJSON(b []byte) error {
+func (t *UnixTime) UnmarshalJSON(b []byte) error {
 	var unixtime int64
 
 	if err := json.Unmarshal(b, &unixtime); err != nil {

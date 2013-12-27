@@ -1,26 +1,25 @@
 package babelcoin
 
 import (
-	. "../core"
+	. "github.com/lox/babelcoin/core"
 	"time"
 )
 
-func Poller(freq time.Duration, fetch func() MarketData) (chan MarketData, chan bool, error) {
-	channel := make(chan MarketData, 10)
-	quit := make(chan bool)
+// polls Exchange.MarketData periodically, writes data to a channel
+func Poller(ex Exchange, p Pair, freq time.Duration, channel chan<- MarketData) error {
 	ticker := time.NewTicker(freq)
-	channel <- fetch()
+	data, err := ex.MarketData(p)
+	if err != nil {
+		return err
+	}
 
+	channel <- data
 	go func() {
 		for _ = range ticker.C {
-			select {
-			case <-quit:
-				break
-			default:
-				channel <- fetch()
-			}
+			data, _ = ex.MarketData(p)
+			channel <- data
 		}
 	}()
 
-	return channel, quit, nil
+	return nil
 }

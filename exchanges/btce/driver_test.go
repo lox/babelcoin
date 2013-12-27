@@ -1,8 +1,8 @@
 package btce
 
 import (
-	babel "../../core"
 	"github.com/davecgh/go-spew/spew"
+	babel "github.com/lox/babelcoin/core"
 	"io"
 	"time"
 

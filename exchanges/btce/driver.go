@@ -1,101 +1,163 @@
+/*
+The driver for accessing btce
+*/
 package btce
 
 import (
-	"github.com/davecgh/go-spew/spew"
-	//"github.com/davecgh/go-spew/spew"
-	babel "../../core"
-	util "../../util"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
+
+	b "github.com/lox/babelcoin/core"
+	util "github.com/lox/babelcoin/util"
 )
 
 type Driver struct {
-	config map[string]interface{}
+	config     map[string]interface{}
+	publicApi  string
+	privateApi string
 }
 
-func NewDriver(config map[string]interface{}) (*Driver, error) {
-	if _, ok := config["info_url"]; !ok {
-		config["info_url"] = InfoUrl
+func New(exchange string, config map[string]interface{}) *Driver {
+	driver := &Driver{config: config}
+
+	if url, ok := config["public_api_url"]; !ok {
+		driver.publicApi = "https://btc-e.com/api/3"
+	} else {
+		driver.publicApi = url.(string)
 	}
 
-	if _, ok := config["ticker_url"]; !ok {
-		config["ticker_url"] = TickerUrl
+	if url, ok := config["private_api_url"]; !ok {
+		driver.privateApi = "https://btc-e.com/tapi"
+	} else {
+		driver.privateApi = url.(string)
 	}
 
-	if _, ok := config["private_url"]; !ok {
-		config["private_url"] = PrivateApiUrl
-	}
-
-	return &Driver{config}, nil
+	return driver
 }
 
-func (b *Driver) Symbols() ([]string, error) {
-	api := NewInfoApi(b.config["info_url"].(string))
-	pairs, err := api.Pairs()
-	if err != nil {
-		return []string{}, err
+func (d *Driver) MarketData(pair b.Pair) (b.MarketData, error) {
+	var resp map[string]struct {
+		Vol, Last, Buy, Sell float64
+		Updated              int64 `json:"updated"`
 	}
 
-	var symbols []string
-	for symbol := range pairs {
-		symbols = append(symbols, symbol)
+	if err := util.HttpGetJson(d.publicApi+"/ticker/"+pairString(pair), &resp); err != nil {
+		return b.MarketData{}, publicApiError(err)
 	}
 
-	return symbols, nil
+	t := resp[pairString(pair)]
+	return b.MarketData{pair, t.Buy, t.Sell, t.Last, t.Vol, time.Unix(t.Updated, 0)}, nil
 }
 
-func (b *Driver) Ticker(symbol string) (chan babel.MarketData, chan bool, error) {
-	api := NewTickerApi(b.config["ticker_url"].(string), []string{symbol})
+func (d *Driver) Balance(symbols []b.Symbol) (map[b.Symbol]float64, error) {
+	var resp struct {
+		Funds map[string]float64 `json:"funds"`
+	}
+	if err := d.privateApiCall("getInfo", &resp, map[string]string{}); err != nil {
+		return map[b.Symbol]float64{}, err
+	}
 
-	duration, ok := b.config["poll_duration"].(time.Duration)
+	balances := map[b.Symbol]float64{}
+	for symbol, amount := range resp.Funds {
+		if len(symbols) == 0 || containsSymbol(b.Symbol(symbol), symbols) {
+			balances[b.Symbol(symbol)] = amount
+		}
+	}
+
+	return balances, nil
+}
+
+func (d *Driver) Ticker(pair b.Pair, channel chan<- b.MarketData) error {
+	duration, ok := d.config["poll_duration"].(time.Duration)
 	if !ok {
 		duration = time.Duration(5) * time.Second
 	}
 
-	channel, quit, err := util.Poller(duration, func() babel.MarketData {
-		data, err := api.MarketData()
-		if err != nil {
-			panic(err)
-		}
-		return &MarketDataAdaptor{data[0]}
-	})
-
-	if err != nil {
-		return channel, quit, err
-	}
-
-	return channel, quit, nil
+	return util.Poller(d, pair, duration, channel)
 }
 
-func (b *Driver) Buy(symbol string, amount float64, price float64) babel.Order {
+func (d *Driver) Pairs() ([]b.Pair, error) {
+	var resp struct {
+		Pairs map[string]struct{}
+	}
+
+	if err := util.HttpGetJson(d.publicApi+"/info", &resp); err != nil {
+		return []b.Pair{}, publicApiError(err)
+	}
+
+	pairs := []b.Pair{}
+	for k := range resp.Pairs {
+		parts := strings.SplitN(k, "_", 2)
+		pairs = append(pairs, b.Pair{b.Symbol(parts[0]), b.Symbol(parts[1])})
+	}
+
+	return pairs, nil
+}
+
+func (d *Driver) Trade(t b.TradeType, pair b.Pair, amount float64, rate float64) (b.Order, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) CancelOrder(order b.Order) error {
+	panic("Not implemented")
+}
+
+func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) error {
+	var resp map[string][]struct {
+		Type           b.TradeType
+		Price, Amount  float64
+		Tid, Timestamp int64
+	}
+
+	// the since param doesn't seem to work any more
+	url := fmt.Sprintf("%s/trades/%s?limit=%d&since=%d",
+		d.publicApi, pairString(pair), 2000, after.Unix())
+
+	if err := util.HttpGetJson(url, &resp); err != nil {
+		return publicApiError(err)
+	}
+
+	for _, t := range resp[pairString(pair)] {
+		channel <- b.Trade{
+			strconv.FormatInt(t.Tid, 10), pair, t.Amount,
+			t.Price, time.Unix(t.Timestamp, 0), t.Type,
+		}
+	}
+
+	close(channel)
+	return nil
+}
+
+func (d *Driver) Orders(limit int) ([]b.Order, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) Transactions(limit int) ([]b.Transaction, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) OrderBook(pair b.Pair, limit int) (b.OrderBook, error) {
+	panic("Not implemented")
+}
+
+/*
+func (b *Driver) History(symbol string) (chan babel.Trade, error) {
+	//_ = NewTradesApi(b.config["trades_url"].(string), []string{symbol}, 2000)
+	channel := make(chan babel.Trade, 1)
+	close(channel)
+	return channel, nil
+}
+
+func (b *Driver) Trade(t babel.TradeType, symbol string, amount float64, price float64) babel.Order {
 	return &OrderAdaptor{driver: b, symbol: symbol, t: "buy", amount: amount, rate: price}
 }
 
 func (b *Driver) Sell(symbol string, amount float64, price float64) babel.Order {
 	return &OrderAdaptor{driver: b, symbol: symbol, t: "sell", amount: amount, rate: price}
-}
-
-type MarketDataAdaptor struct {
-	data MarketData
-}
-
-func (d *MarketDataAdaptor) Ask() float64 {
-	return d.data.Sell
-}
-
-func (d *MarketDataAdaptor) Bid() float64 {
-	return d.data.Buy
-}
-
-func (d *MarketDataAdaptor) Last() float64 {
-	return d.data.Last
-}
-
-func (d *MarketDataAdaptor) Volume() float64 {
-	return d.data.Volume
-}
-
-func (d *MarketDataAdaptor) Updated() time.Time {
-	return d.data.Updated.Time
 }
 
 type OrderAdaptor struct {
@@ -110,7 +172,7 @@ type OrderAdaptor struct {
 func (o *OrderAdaptor) Execute() (chan babel.Trade, error) {
 	channel := make(chan babel.Trade, 10)
 
-	api := NewBtceApi(o.driver.config["private_url"].(string),
+	api := NewDriver(o.driver.config["private_url"].(string),
 		o.driver.config["key"].(string), o.driver.config["secret"].(string))
 
 	unixtime := time.Now().Unix()
@@ -150,6 +212,26 @@ func (o *OrderAdaptor) Execute() (chan babel.Trade, error) {
 	return channel, nil
 }
 
+func (o *OrderAdaptor) Pair() babel.Pair {
+	return ""
+}
+
+func (o *OrderAdaptor) Amount() float64 {
+	return 0
+}
+
+func (o *OrderAdaptor) Remains() float64 {
+	return 0
+}
+
+func (o *OrderAdaptor) Timestamp() time.Time {
+	return time.Now()
+}
+
+func (o *OrderAdaptor) Type() babel.TradeType {
+	return babel.Buy
+}
+
 func (o *OrderAdaptor) Fee() (float64, error) {
 	api := NewInfoApi(o.driver.config["info_url"].(string))
 	pairs, err := api.Pairs()
@@ -167,7 +249,7 @@ func (o *OrderAdaptor) Fee() (float64, error) {
 }
 
 func (o *OrderAdaptor) Cancel() error {
-	api := NewBtceApi(o.driver.config["private_url"].(string),
+	api := NewDriver(o.driver.config["private_url"].(string),
 		o.driver.config["key"].(string), o.driver.config["secret"].(string))
 
 	_, err := api.CancelOrder(o.orderId)
@@ -183,10 +265,54 @@ type TradeAdaptor struct {
 	rate   float64
 }
 
+func (t *TradeAdaptor) Pair() babel.Pair {
+	return ""
+}
+
+func (t *TradeAdaptor) Type() babel.TradeType {
+	return babel.Buy
+}
+
+func (t *TradeAdaptor) Timestamp() time.Time {
+	return time.Now()
+}
+
 func (t *TradeAdaptor) Amount() float64 {
 	return t.amount
 }
 
 func (t *TradeAdaptor) Rate() float64 {
 	return t.rate
+}
+*/
+
+// attempts to extract a message from an api error
+func publicApiError(err *util.HttpError) error {
+	var er struct {
+		Success int
+		Error   string
+	}
+
+	if err.ResponseBody == nil {
+		return err
+	} else if err2 := json.Unmarshal(err.ResponseBody, &er); err2 != nil {
+		return err
+	}
+
+	return errors.New("API Error: " + er.Error)
+}
+
+// returns a pair in the form ltc_usd
+func pairString(pair b.Pair) string {
+	return string(pair.Base) + "_" + string(pair.Counter)
+}
+
+// checks if a Symbol is in a slice of Symbols
+func containsSymbol(a b.Symbol, list []b.Symbol) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }

@@ -1,87 +1,221 @@
+/*
+The driver for accessing bitcoincharts,
+supports History(), Ticker(), Pairs() and MarketData()
+*/
 package bitcoincharts
 
 import (
-	babel "../../core"
-	util "../../util"
-	//"errors"
+	"encoding/csv"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"time"
+
+	b "github.com/lox/babelcoin/core"
+	util "github.com/lox/babelcoin/util"
 )
 
 type Driver struct {
-	config map[string]interface{}
+	exchange string
+	config   map[string]interface{}
 }
 
-func NewDriver(config map[string]interface{}) *Driver {
-	return &Driver{config}
+// creates a new bitcoincharts driver
+func New(exchange string, config map[string]interface{}) b.Exchange {
+	if _, ok := config["api_url"]; !ok {
+		config["api_url"] = "http://api.bitcoincharts.com/v1"
+	}
+
+	return &Driver{
+		exchange: exchange,
+		config:   config,
+	}
 }
 
-func (b *Driver) Ticker(symbol string) (chan babel.MarketData, chan bool, error) {
-	api := NewMarketsApi(MarketUrl)
+func (d *Driver) MarketData(pair b.Pair) (b.MarketData, error) {
+	var resp []struct {
+		Symbol      string        `json:"symbol"`
+		Bid         float64       `json:"bid"`
+		Ask         float64       `json:"ask"`
+		LatestTrade util.UnixTime `json:"latest_trade"`
+		Close       float64       `json:"close"`
+		Volume      float64       `json:"volume"`
+	}
 
-	duration, ok := b.config["poll_duration"].(time.Duration)
+	err := util.HttpGetJson(d.config["api_url"].(string)+"/markets.json", &resp)
+	if err != nil {
+		return b.MarketData{}, err
+	}
+
+	for _, data := range resp {
+		if data.Symbol == d.getSymbol(pair) {
+			return b.MarketData{
+				Pair:    pair,
+				Last:    data.Close,
+				Buy:     data.Bid,
+				Sell:    data.Ask,
+				Volume:  data.Volume,
+				Updated: data.LatestTrade.Time,
+			}, nil
+		}
+	}
+
+	return b.MarketData{}, errors.New("Unknown pair " + pair.String())
+}
+
+func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) error {
+	reader, err := d.getHistoryCsv(pair)
+	if err != nil {
+		return err
+	}
+
+	tempChannel := make(chan b.Trade, 10)
+	go func() {
+		d.readAllCsvTrades(pair, reader, tempChannel)
+	}()
+
+	// process trades for time limiting
+	go func() {
+		for trade := range tempChannel {
+			if trade.Timestamp.After(after) {
+				channel <- trade
+			}
+		}
+		close(channel)
+	}()
+
+	return nil
+}
+
+func (d *Driver) Ticker(pair b.Pair, channel chan<- b.MarketData) error {
+	duration, ok := d.config["poll_duration"].(time.Duration)
 	if !ok {
 		duration = time.Duration(5) * time.Second
 	}
 
-	channel, quit, err := util.Poller(duration, func() babel.MarketData {
-		markets, err := api.Markets()
-		if err != nil {
-			panic(err)
+	ticker := time.NewTicker(duration)
+	go func() {
+		for _ = range ticker.C {
+			data, err := d.MarketData(pair)
+			if err != nil {
+				panic(err)
+			}
+			channel <- data
 		}
-		return &MarketDataAdaptor{markets[symbol]}
-	})
+		close(channel)
+	}()
 
+	return nil
+}
+
+func (d *Driver) Pairs() ([]b.Pair, error) {
+	var resp []struct {
+		Symbol   string `json:"symbol"`
+		Currency string `json:"currency"`
+	}
+
+	err := util.HttpGetJson(d.config["api_url"].(string)+"/markets.json", &resp)
 	if err != nil {
-		return channel, quit, err
+		return []b.Pair{}, err
 	}
 
-	return channel, quit, nil
+	parts := strings.Split(d.exchange, ":")
+	var pairs []b.Pair
+
+	if len(parts) != 2 {
+		panic("Exchange name must be in bitcoincharts:xxxx format")
+	}
+
+	for _, data := range resp {
+		if strings.Index(data.Symbol, parts[1]) == 0 {
+			pairs = append(pairs, b.Pair{
+				b.Symbol("btc"), b.Symbol(strings.ToLower(data.Currency)),
+			})
+		}
+	}
+
+	return pairs, nil
 }
 
-func (b *Driver) Symbols() ([]string, error) {
-	api := NewMarketsApi(MarketUrl)
-	markets, err := api.Markets()
+func (d *Driver) Balance(symbol []b.Symbol) (map[b.Symbol]float64, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) Trade(t b.TradeType, pair b.Pair, amount float64, rate float64) (b.Order, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) CancelOrder(order b.Order) error {
+	panic("Not implemented")
+}
+
+func (d *Driver) Orders(limit int) ([]b.Order, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) Transactions(limit int) ([]b.Transaction, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) OrderBook(pair b.Pair, limit int) (b.OrderBook, error) {
+	panic("Not implemented")
+}
+
+func (d *Driver) getSymbol(pair b.Pair) string {
+	parts := strings.SplitN(d.exchange, ":", 2)
+	return parts[1] + strings.ToUpper(string(pair.Counter))
+}
+
+// read all trades in csv format from the bitcoincharts api
+func (d *Driver) readAllCsvTrades(pair b.Pair, reader io.Reader, channel chan<- b.Trade) error {
+	csv := csv.NewReader(reader)
+	for {
+		fields, err := csv.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		timestamp, _ := strconv.ParseInt(fields[0], 10, 64)
+		rate, _ := strconv.ParseFloat(fields[1], 64)
+		amount, _ := strconv.ParseFloat(fields[2], 64)
+		channel <- b.Trade{
+			Pair:      pair,
+			Timestamp: time.Unix(timestamp, 0),
+			Rate:      rate,
+			Amount:    amount,
+		}
+	}
+	close(channel)
+	return nil
+}
+
+// gets a reader for the csv data for full history for a pair
+func (d *Driver) getHistoryCsv(pair b.Pair) (io.Reader, error) {
+
+	// if provided, use a cache dir for the csvs
+	if cache := os.Getenv("BTCCHARTS_CACHE"); cache != "" {
+		filename := fmt.Sprintf("%s/%s.csv", cache, d.getSymbol(pair))
+		log.Printf("Using cached bitcoincharts history file %s", filename)
+		return os.Open(filename)
+	}
+
+	url := fmt.Sprintf("%s/csv/%s.csv", d.config["api_url"], d.getSymbol(pair))
+	log.Printf("Downloading full history from %s", url)
+
+	resp, err := http.Get(url)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 
-	var symbols []string
-
-	for _, market := range markets {
-		symbols = append(symbols, market.Symbol)
-	}
-
-	return symbols, nil
+	return resp.Body, nil
 }
 
-func (b *Driver) Buy(symbol string, amount float64, price float64) babel.Order {
-	panic("Bid() not supported")
-}
-
-func (b *Driver) Sell(symbol string, amount float64, price float64) babel.Order {
-	panic("Ask() not supported")
-}
-
-type MarketDataAdaptor struct {
-	data Market
-}
-
-func (d *MarketDataAdaptor) Ask() float64 {
-	return d.data.Ask
-}
-
-func (d *MarketDataAdaptor) Bid() float64 {
-	return d.data.Bid
-}
-
-func (d *MarketDataAdaptor) Last() float64 {
-	return d.data.Close
-}
-
-func (d *MarketDataAdaptor) Volume() float64 {
-	return d.data.Volume
-}
-
-func (d *MarketDataAdaptor) Updated() time.Time {
-	return d.data.LatestTrade.Time
+func init() {
+	//b.AddExchangeFactory("bitcoincharts", New)
 }
