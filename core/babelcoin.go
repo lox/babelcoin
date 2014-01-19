@@ -10,6 +10,7 @@ This interface is subject to change at this stage.
 package babelcoin
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -37,16 +38,10 @@ var (
 	LTC_BTC Pair = Pair{LTC, BTC}
 )
 
-type Currency struct {
-	Value     int64
-	Precision int
-	Symbol    Symbol
-}
-
 // the state of trading for a given pair on an exchange
 type MarketData struct {
 	Pair                    Pair
-	Buy, Sell, Last, Volume Currency
+	Buy, Sell, Last, Volume float64
 	Updated                 time.Time
 }
 
@@ -62,7 +57,7 @@ const (
 type Trade struct {
 	Id           string
 	Pair         Pair
-	Amount, Rate Currency
+	Amount, Rate float64
 	Timestamp    time.Time
 	Type         TradeType
 }
@@ -73,7 +68,7 @@ type Order struct {
 	Pair                       Pair
 	Type                       TradeType
 	Timestamp                  time.Time
-	Amount, Remains, Rate, Fee Currency
+	Amount, Remains, Rate, Fee float64
 }
 
 // an operation against an account
@@ -81,13 +76,13 @@ type Transaction struct {
 	Id        string
 	Symbol    Symbol
 	Timestamp time.Time
-	Amount    Currency
+	Amount    float64
 }
 
 // the order book showing asks and bids
 type OrderBook struct {
 	Asks, Bids []struct {
-		Price, Amount Currency
+		Price, Amount float64
 	}
 }
 
@@ -107,8 +102,9 @@ type Exchange interface {
 	Pairs() ([]Pair, error)
 
 	// executes a trade on the exchange, either as a limit order if a rate
-	// is provided, or a market order if -1 is provided as rate
-	Trade(t TradeType, pair Pair, amount Currency, rate Currency) (Order, error)
+	// is provided, or a market order if -1 is provided as rate. If amount is -1 then
+	// the entire balance the user has is used
+	Trade(t TradeType, pair Pair, amount float64, rate float64) (Order, error)
 
 	// cancels an order that was previously placed
 	CancelOrder(order Order) error
@@ -130,13 +126,20 @@ type Exchange interface {
 // a function for creating an Exchange
 type ExchangeFactory func(key string, config map[string]interface{}) Exchange
 
-// returns a pair in the form btc/usd as a string
+// returns a pair in the form btc_usd as a string
 func (p *Pair) String() string {
-	return string(p.Base + "/" + p.Counter)
+	return string(p.Base + "_" + p.Counter)
 }
 
-// parses a pair in the form of btc/usd
+// parses a pair in the form of btc_usd
 func ParsePair(pair string) Pair {
-	parts := strings.SplitN(pair, "/", 2)
+	parts := strings.SplitN(pair, "_", 2)
 	return Pair{Symbol(strings.ToLower(parts[0])), Symbol(strings.ToLower(parts[1]))}
+}
+
+// returns a string version of a trade
+func (t *Trade) String() string {
+	return fmt.Sprintf("%s %s %.5f@%.5f on %s",
+		strings.ToUpper(string(t.Type)), t.Pair.String(),
+		t.Amount, t.Rate, t.Timestamp.Format(time.Stamp))
 }

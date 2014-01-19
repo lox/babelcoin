@@ -15,13 +15,20 @@ import (
 	util "github.com/lox/babelcoin/util"
 )
 
+type pairInfo struct {
+	Precision                     int
+	MinAmount, MinPrice, MaxPrice float64
+	Fee                           float64
+}
+
 type Driver struct {
 	config     map[string]interface{}
 	publicApi  string
 	privateApi string
+	pairs      map[b.Pair]pairInfo
 }
 
-func New(exchange string, config map[string]interface{}) *Driver {
+func New(exchange string, config map[string]interface{}) b.Exchange {
 	driver := &Driver{config: config}
 
 	if url, ok := config["public_api_url"]; !ok {
@@ -45,11 +52,11 @@ func (d *Driver) MarketData(pair b.Pair) (b.MarketData, error) {
 		Updated              int64 `json:"updated"`
 	}
 
-	if err := util.HttpGetJson(d.publicApi+"/ticker/"+pairString(pair), &resp); err != nil {
+	if err := util.HttpGetJson(d.publicApi+"/ticker/"+pair.String(), &resp); err != nil {
 		return b.MarketData{}, publicApiError(err)
 	}
 
-	t := resp[pairString(pair)]
+	t := resp[pair.String()]
 	return b.MarketData{pair, t.Buy, t.Sell, t.Last, t.Vol, time.Unix(t.Updated, 0)}, nil
 }
 
@@ -77,22 +84,41 @@ func (d *Driver) Ticker(pair b.Pair, channel chan<- b.MarketData) error {
 		duration = time.Duration(5) * time.Second
 	}
 
-	return util.Poller(d, pair, duration, channel)
+	return util.MarketDataPoller(d, pair, duration, channel)
+}
+
+func (d *Driver) pairInfo() (map[b.Pair]pairInfo, error) {
+	if d.pairs == nil {
+		var resp struct {
+			Pairs map[string]pairInfo
+		}
+
+		if err := util.HttpGetJson(d.publicApi+"/info", &resp); err != nil {
+			return map[b.Pair]pairInfo{}, publicApiError(err)
+		}
+
+		d.pairs = map[b.Pair]pairInfo{}
+
+		for k, v := range resp.Pairs {
+			parts := strings.SplitN(k, "_", 2)
+			pair := b.Pair{b.Symbol(parts[0]), b.Symbol(parts[1])}
+			d.pairs[pair] = v
+		}
+	}
+
+	return d.pairs, nil
 }
 
 func (d *Driver) Pairs() ([]b.Pair, error) {
-	var resp struct {
-		Pairs map[string]struct{}
-	}
-
-	if err := util.HttpGetJson(d.publicApi+"/info", &resp); err != nil {
-		return []b.Pair{}, publicApiError(err)
-	}
-
 	pairs := []b.Pair{}
-	for k := range resp.Pairs {
-		parts := strings.SplitN(k, "_", 2)
-		pairs = append(pairs, b.Pair{b.Symbol(parts[0]), b.Symbol(parts[1])})
+	info, err := d.pairInfo()
+
+	if err != nil {
+		return pairs, err
+	}
+
+	for k, _ := range info {
+		pairs = append(pairs, k)
 	}
 
 	return pairs, nil
@@ -108,23 +134,30 @@ func (d *Driver) CancelOrder(order b.Order) error {
 
 func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) error {
 	var resp map[string][]struct {
-		Type           b.TradeType
+		Type           string
 		Price, Amount  float64
 		Tid, Timestamp int64
 	}
 
 	// the since param doesn't seem to work any more
 	url := fmt.Sprintf("%s/trades/%s?limit=%d&since=%d",
-		d.publicApi, pairString(pair), 2000, after.Unix())
+		d.publicApi, pair.String(), 2000, after.Unix())
 
 	if err := util.HttpGetJson(url, &resp); err != nil {
 		return publicApiError(err)
 	}
 
-	for _, t := range resp[pairString(pair)] {
+	for _, t := range resp[pair.String()] {
+		var tradeType string
+		if t.Type == "bid" {
+			tradeType = "buy"
+		} else {
+			tradeType = "sell"
+		}
+
 		channel <- b.Trade{
-			strconv.FormatInt(t.Tid, 10), pair, t.Amount,
-			t.Price, time.Unix(t.Timestamp, 0), t.Type,
+			strconv.FormatInt(t.Tid, 10), pair, t.Amount, t.Price,
+			time.Unix(t.Timestamp, 0), b.TradeType(tradeType),
 		}
 	}
 
@@ -302,11 +335,6 @@ func publicApiError(err *util.HttpError) error {
 	return errors.New("API Error: " + er.Error)
 }
 
-// returns a pair in the form ltc_usd
-func pairString(pair b.Pair) string {
-	return string(pair.Base) + "_" + string(pair.Counter)
-}
-
 // checks if a Symbol is in a slice of Symbols
 func containsSymbol(a b.Symbol, list []b.Symbol) bool {
 	for _, b := range list {
@@ -315,4 +343,8 @@ func containsSymbol(a b.Symbol, list []b.Symbol) bool {
 		}
 	}
 	return false
+}
+
+func init() {
+	b.AddExchangeFactory("btce", b.ExchangeFactory(New))
 }

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	urlpkg "net/url"
 )
 
 const (
-	HTTP_DEBUG = true
+	HTTP_DEBUG = false
 )
 
 type HttpError struct {
@@ -44,7 +45,11 @@ func HttpDurableGet(url string, times int) ([]byte, error) {
 		resp, err := http.Get(url)
 
 		if HTTP_DEBUG {
-			bytes, _ := httputil.DumpResponse(resp, true)
+			if err != nil {
+				log.Println("HTTP Get failed: " + err.Error())
+			}
+
+			bytes, _ := httputil.DumpResponse(resp, false)
 			fmt.Println(string(bytes))
 		}
 

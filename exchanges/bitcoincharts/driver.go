@@ -217,5 +217,5 @@ func (d *Driver) getHistoryCsv(pair b.Pair) (io.Reader, error) {
 }
 
 func init() {
-	//b.AddExchangeFactory("bitcoincharts", New)
+	b.AddExchangeFactory("bitcoincharts", b.ExchangeFactory(New))
 }
