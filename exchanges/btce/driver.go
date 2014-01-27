@@ -26,6 +26,7 @@ type Driver struct {
 	publicApi  string
 	privateApi string
 	pairs      map[b.Pair]pairInfo
+	client     *util.JsonRPCClient
 }
 
 func New(exchange string, config map[string]interface{}) b.Exchange {
@@ -41,6 +42,12 @@ func New(exchange string, config map[string]interface{}) b.Exchange {
 		driver.privateApi = "https://btc-e.com/tapi"
 	} else {
 		driver.privateApi = url.(string)
+	}
+
+	driver.client = &util.JsonRPCClient{
+		driver.privateApi,
+		config["key"].(string),
+		config["secret"].(string),
 	}
 
 	return driver
@@ -64,7 +71,7 @@ func (d *Driver) Balance(symbols []b.Symbol) (map[b.Symbol]float64, error) {
 	var resp struct {
 		Funds map[string]float64 `json:"funds"`
 	}
-	if err := d.privateApiCall("getInfo", &resp, map[string]string{}); err != nil {
+	if err := d.client.Call("getInfo", &resp, map[string]string{}); err != nil {
 		return map[b.Symbol]float64{}, err
 	}
 
@@ -132,7 +139,7 @@ func (d *Driver) CancelOrder(order b.Order) error {
 	panic("Not implemented")
 }
 
-func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) error {
+func (d *Driver) TradeHistory(pairs []b.Pair, after time.Time, limit int, channel chan<- b.Trade) error {
 	var resp map[string][]struct {
 		Type           string
 		Price, Amount  float64
@@ -141,23 +148,25 @@ func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) e
 
 	// the since param doesn't seem to work any more
 	url := fmt.Sprintf("%s/trades/%s?limit=%d&since=%d",
-		d.publicApi, pair.String(), 2000, after.Unix())
+		d.publicApi, flattenPairs(pairs), limit, after.Unix())
 
 	if err := util.HttpGetJson(url, &resp); err != nil {
 		return publicApiError(err)
 	}
 
-	for _, t := range resp[pair.String()] {
-		var tradeType string
-		if t.Type == "bid" {
-			tradeType = "buy"
-		} else {
-			tradeType = "sell"
-		}
+	for p, trades := range resp {
+		for _, t := range trades {
+			var tradeType string
+			if t.Type == "bid" {
+				tradeType = "buy"
+			} else {
+				tradeType = "sell"
+			}
 
-		channel <- b.Trade{
-			strconv.FormatInt(t.Tid, 10), pair, t.Amount, t.Price,
-			time.Unix(t.Timestamp, 0), b.TradeType(tradeType),
+			channel <- b.Trade{
+				strconv.FormatInt(t.Tid, 10), b.ParsePair(p), t.Amount, t.Price,
+				time.Unix(t.Timestamp, 0), b.TradeType(tradeType), "btce",
+			}
 		}
 	}
 
@@ -175,6 +184,10 @@ func (d *Driver) Transactions(limit int) ([]b.Transaction, error) {
 
 func (d *Driver) OrderBook(pair b.Pair, limit int) (b.OrderBook, error) {
 	panic("Not implemented")
+}
+
+func (d *Driver) Account() b.ExchangeAccount {
+	return d
 }
 
 /*
@@ -343,6 +356,15 @@ func containsSymbol(a b.Symbol, list []b.Symbol) bool {
 		}
 	}
 	return false
+}
+
+// flattens an array of Pairs into a string
+func flattenPairs(pairs []b.Pair) string {
+	var pairStrings = []string{}
+	for _, p := range pairs {
+		pairStrings = append(pairStrings, p.String())
+	}
+	return strings.Join(pairStrings, "-")
 }
 
 func init() {

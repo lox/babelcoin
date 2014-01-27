@@ -12,6 +12,7 @@ import (
 	"github.com/lox/babelcoin/core"
 	"github.com/lox/babelcoin/exchanges/bitcoincharts"
 	"github.com/lox/babelcoin/exchanges/btce"
+	"github.com/lox/babelcoin/exchanges/cryptsy"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 
 Usage:
   babelcoin ticker <exchange> <pair> [--interval=<duration>]
-  babelcoin history <exchange> <pair>
+  babelcoin tradehistory <exchange> <pair>...
   babelcoin (buy|sell) <exchange> <pair> <amount> <rate> [--timeout=<duration>]
   babelcoin pairs <exchange>
   babelcoin balances <exchange>
@@ -45,8 +46,8 @@ Options:
 		//Trade(args, "buy")
 	} else if sell := args["sell"]; sell.(bool) {
 		//Trade(args, "sell")
-	} else if history := args["history"]; history.(bool) {
-		History(args)
+	} else if tradehistory := args["tradehistory"]; tradehistory.(bool) {
+		TradeHistory(args)
 	} else if balances := args["balances"]; balances.(bool) {
 		Balances(args)
 	}
@@ -77,24 +78,31 @@ func Ticker(args map[string]interface{}) {
 	}
 }
 
-func History(args map[string]interface{}) {
+func TradeHistory(args map[string]interface{}) {
 	exchange, err := NewExchange(args["<exchange>"].(string), map[string]interface{}{})
 	if err != nil {
 		panic(err)
 	}
 
 	// get history for up to 2 months ago
-	after := time.Now().AddDate(-1, -2, 0)
-	channel := make(chan babelcoin.Trade)
+	after := time.Now().AddDate(0, -2, 0)
+	channel := make(chan babelcoin.Trade, 5000)
 
-	if err := exchange.History(babelcoin.ParsePair(args["<pair>"].(string)), after, channel); err != nil {
-		panic(err)
+	pairs := []babelcoin.Pair{}
+	for _, p := range args["<pair>"].([]string) {
+		pairs = append(pairs, babelcoin.ParsePair(p))
 	}
+
+	go func() {
+		if err := exchange.TradeHistory(pairs, after, 2000, channel); err != nil {
+			panic(err)
+		}
+	}()
 
 	log.Printf("Loading history after %s", after)
 	for trade := range channel {
-		fmt.Printf("%s %s %.4f @ %.4f\n",
-			trade.Timestamp.Format("2006-01-02T15:04:05"), trade.Type, trade.Amount, trade.Rate)
+		fmt.Printf("%s %s %s %.4f @ %.4f\n",
+			trade.Timestamp.Format("2006-01-02T15:04:05"), trade.Type, trade.Pair.String(), trade.Amount, trade.Rate)
 	}
 }
 
@@ -120,7 +128,7 @@ func Balances(args map[string]interface{}) {
 		panic(err)
 	}
 
-	balances, err := exchange.Balance([]babelcoin.Symbol{})
+	balances, err := exchange.Account().Balance([]babelcoin.Symbol{})
 	if err != nil {
 		panic(err)
 	}
@@ -223,6 +231,10 @@ func NewExchange(exchange string, config map[string]interface{}) (babelcoin.Exch
 	parts := strings.SplitN(exchange, ":", 2)
 
 	switch parts[0] {
+	case "cryptsy":
+		config["key"] = os.Getenv("CRYPTSY_KEY")
+		config["secret"] = os.Getenv("CRYPTSY_SECRET")
+		return cryptsy.New(exchange, config), nil
 	case "bitcoincharts":
 		return bitcoincharts.New(exchange, config), nil
 	case "btce":

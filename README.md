@@ -28,17 +28,11 @@ for data := range ticker {
 }
 
 // place a limit bid order
-limitOrder := exchange.NewBid(100.0, 11.0)
+limitOrder := exchange.NewBid(100.0, 11.0, -1)
 trades, err := limitOrder.Execute()
 ```
 
-Supported Exchanges
+Status
 -------------------
 
- * BTC-e (format is btce/ltc_usd)
-   * Account / Trading
-   * Trades
-   * Order Book
-   * Market Data
-* BitcoinCharts (format is bitcoincharts/mtgoxUSD)
-   * Market Data
+In the middle of refactoring API. Trade/MarketData polling is working for BTC-e.

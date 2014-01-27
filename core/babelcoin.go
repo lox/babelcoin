@@ -60,6 +60,7 @@ type Trade struct {
 	Amount, Rate float64
 	Timestamp    time.Time
 	Type         TradeType
+	Exchange     string
 }
 
 // an order on an exchange, either ours or other peoples
@@ -86,12 +87,7 @@ type OrderBook struct {
 	}
 }
 
-// the interface to an exchange
 type Exchange interface {
-	// the users balance for the provided symbol, an empty
-	// slice should result in all balances being returned
-	Balance(symbols []Symbol) (map[Symbol]float64, error)
-
 	// returns the current market state
 	MarketData(pair Pair) (MarketData, error)
 
@@ -101,19 +97,28 @@ type Exchange interface {
 	// returns the pairs that are supported on the exchange
 	Pairs() ([]Pair, error)
 
-	// executes a trade on the exchange, either as a limit order if a rate
+	// returns historical trades for the exchange for the provided timeframe
+	TradeHistory(pairs []Pair, after time.Time, limit int, channel chan<- Trade) error
+
+	// gets the private account for the exchange
+	Account() ExchangeAccount
+}
+
+type ExchangeAccount interface {
+	// the users balance for the provided symbol, an empty
+	// slice should result in all balances being returned
+	Balance(symbols []Symbol) (map[Symbol]float64, error)
+
+	// places an order on the exchange, either as a limit order if a rate
 	// is provided, or a market order if -1 is provided as rate. If amount is -1 then
 	// the entire balance the user has is used
 	Trade(t TradeType, pair Pair, amount float64, rate float64) (Order, error)
 
-	// cancels an order that was previously placed
-	CancelOrder(order Order) error
-
-	// returns historical trades for the exchange for the provided timeframe
-	History(pair Pair, after time.Time, channel chan<- Trade) error
-
 	// returns the users orders
 	Orders(limit int) ([]Order, error)
+
+	// cancels an order that was previously placed
+	CancelOrder(order Order) error
 
 	// returns the users transactions
 	Transactions(limit int) ([]Transaction, error)
@@ -135,6 +140,16 @@ func (p *Pair) String() string {
 func ParsePair(pair string) Pair {
 	parts := strings.SplitN(pair, "_", 2)
 	return Pair{Symbol(strings.ToLower(parts[0])), Symbol(strings.ToLower(parts[1]))}
+}
+
+// returns true if the slice contains the given pair
+func ContainsPair(pair Pair, pairs []Pair) bool {
+	for _, p := range pairs {
+		if p == pair {
+			return true
+		}
+	}
+	return false
 }
 
 // returns a string version of a trade

@@ -2,16 +2,15 @@ package babelcoin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	urlpkg "net/url"
-)
-
-const (
-	HTTP_DEBUG = false
+	"os"
+	"time"
 )
 
 type HttpError struct {
@@ -42,15 +41,24 @@ func HttpDurableGet(url string, times int) ([]byte, error) {
 	var body []byte
 
 	for i := 0; i < times; i++ {
+		timer := time.Now()
 		resp, err := http.Get(url)
 
-		if HTTP_DEBUG {
+		// 5xx responses don't count as errors
+		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+			err = errors.New(fmt.Sprintf("Server returned %s", resp.Status))
+		}
+
+		if os.Getenv("HTTP_DEBUG") != "" {
+			log.Printf("Fetching %s", url)
 			if err != nil {
 				log.Println("HTTP Get failed: " + err.Error())
 			}
 
-			bytes, _ := httputil.DumpResponse(resp, false)
+			bytes, _ := httputil.DumpResponse(resp, os.Getenv("HTTP_DEBUG") == "2")
 			fmt.Println(string(bytes))
+
+			log.Printf("Loaded %d bytes of request in %s", len(bytes), time.Now().Sub(timer))
 		}
 
 		switch err.(type) {
@@ -64,8 +72,18 @@ func HttpDurableGet(url string, times int) ([]byte, error) {
 			continue
 		}
 
+		if os.Getenv("HTTP_DEBUG") != "" {
+			log.Printf("Starting reading body")
+		}
+
+		readTimer := time.Now()
 		body, err = ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
+
+		if os.Getenv("HTTP_DEBUG") != "" {
+			log.Printf("Finished reading response body in %s",
+				time.Now().Sub(readTimer))
+		}
 
 		if err != nil && i == times {
 			return []byte{}, err

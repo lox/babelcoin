@@ -1,4 +1,4 @@
-package btce
+package babelcoin
 
 import (
 	"bytes"
@@ -11,22 +11,27 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 )
 
+type JsonRPCClient struct {
+	Url, Key, Secret string
+}
+
 // generate hmac-sha512 hash, hex encoded
-func sign(secret string, payload string) string {
+func (c *JsonRPCClient) sign(secret string, payload string) string {
 	mac := hmac.New(sha512.New, []byte(secret))
 	mac.Write([]byte(payload))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // returns a url encoded string to be signed an send
-func (b *Driver) encodePostData(method string, params map[string]string) string {
-	// for some reason, btce barfs on larger nonces
-	nonce := time.Now().UnixNano() / 1000000000
+func (c *JsonRPCClient) encodePostData(method string, params map[string]string) string {
+	nonce := time.Now().Unix()
 	result := fmt.Sprintf("method=%s&nonce=%d", method, nonce)
 
 	// params are unordered, but after method and nonce
@@ -41,8 +46,8 @@ func (b *Driver) encodePostData(method string, params map[string]string) string 
 	return result
 }
 
-// marshal an api response into an object, with a form for success and
-func (b *Driver) marshalResponse(resp *http.Response, v interface{}) error {
+// marshal an api response into an object
+func (c *JsonRPCClient) marshalResponse(resp *http.Response, v interface{}) error {
 	// read the response
 	defer resp.Body.Close()
 	bytes, err := ioutil.ReadAll(resp.Body)
@@ -51,14 +56,8 @@ func (b *Driver) marshalResponse(resp *http.Response, v interface{}) error {
 		return err
 	}
 
-	// sometimes, btc-e returns a non-json error
-	if string(bytes) == "invalid POST data" {
-		log.Fatalf("Invalid post data")
-		return errors.New("Request failed: invalid post data")
-	}
-
 	data := &struct {
-		Success int             `json:"success"`
+		Success interface{}     `json:"success"`
 		Return  json.RawMessage `json:"return"`
 		Error   string          `json:"error"`
 	}{}
@@ -67,7 +66,18 @@ func (b *Driver) marshalResponse(resp *http.Response, v interface{}) error {
 		return err
 	}
 
-	if data.Success != 1 {
+	// some impls use strings, some ints
+	var success int
+	if val, ok := data.Success.(int); ok {
+		success = val
+	} else if val, ok := data.Success.(string); ok {
+		success, err = strconv.Atoi(val)
+		if err != nil {
+			return err
+		}
+	}
+
+	if success != 1 {
 		log.Fatalf("Request failed: %v", data.Error)
 		return errors.New("Request failed: " + data.Error)
 	}
@@ -80,25 +90,35 @@ func (b *Driver) marshalResponse(resp *http.Response, v interface{}) error {
 	return nil
 }
 
-// make a call to the btc-e api, marshal into v
-func (d *Driver) privateApiCall(method string, v interface{}, params map[string]string) error {
+// make a call to the jsonrpc api, marshal into v
+func (c *JsonRPCClient) Call(method string, v interface{}, params map[string]string) error {
 	client := &http.Client{}
-	postData := d.encodePostData(method, params)
+	postData := c.encodePostData(method, params)
 
-	r, err := http.NewRequest("POST", d.privateApi, bytes.NewBufferString(postData))
+	r, err := http.NewRequest("POST", c.Url, bytes.NewBufferString(postData))
 	if err != nil {
 		return err
 	}
 
-	r.Header.Add("Sign", sign(d.config["secret"].(string), postData))
-	r.Header.Add("Key", d.config["key"].(string))
+	r.Header.Add("Sign", c.sign(c.Secret, postData))
+	r.Header.Add("Key", c.Key)
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r.Header.Add("Content-Length", strconv.Itoa(len(postData)))
+
+	if os.Getenv("HTTP_DEBUG") != "" {
+		bytes, _ := httputil.DumpRequest(r, os.Getenv("HTTP_DEBUG") == "2")
+		fmt.Println(string(bytes))
+	}
 
 	resp, err := client.Do(r)
 	if err != nil {
 		return err
 	}
 
-	return d.marshalResponse(resp, v)
+	if os.Getenv("HTTP_DEBUG") != "" {
+		bytes, _ := httputil.DumpResponse(resp, os.Getenv("HTTP_DEBUG") == "2")
+		fmt.Println(string(bytes))
+	}
+
+	return c.marshalResponse(resp, v)
 }

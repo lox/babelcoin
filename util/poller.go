@@ -6,9 +6,9 @@ import (
 )
 
 // polls Exchange.MarketData periodically, writes data to a channel
-func MarketDataPoller(ex Exchange, p Pair, freq time.Duration, channel chan<- MarketData) error {
+func MarketDataPoller(ex Exchange, pair Pair, freq time.Duration, channel chan<- MarketData) error {
 	ticker := time.NewTicker(freq)
-	data, err := ex.MarketData(p)
+	data, err := ex.MarketData(pair)
 	if err != nil {
 		return err
 	}
@@ -16,7 +16,7 @@ func MarketDataPoller(ex Exchange, p Pair, freq time.Duration, channel chan<- Ma
 	channel <- data
 	go func() {
 		for _ = range ticker.C {
-			data, _ = ex.MarketData(p)
+			data, _ = ex.MarketData(pair)
 			channel <- data
 		}
 	}()
@@ -25,18 +25,20 @@ func MarketDataPoller(ex Exchange, p Pair, freq time.Duration, channel chan<- Ma
 }
 
 // polls Exchange.History periodically, writes new trades to channel
-func HistoryPoller(ex Exchange, p Pair, freq time.Duration, channel chan<- Trade) error {
+func HistoryPoller(ex Exchange, pairs []Pair, freq time.Duration, channel chan<- Trade) error {
 	ticker := time.NewTicker(freq)
 
 	go func() {
 		set := map[string]time.Time{}
+		after := time.Now().AddDate(0, 0, -3)
+		limit := 2000
 
 		for _ = range ticker.C {
 			trades := make(chan Trade)
 
 			go func() {
 				// get history for a day ago
-				if err := ex.History(p, time.Now().AddDate(0, 0, -1), trades); err != nil {
+				if err := ex.TradeHistory(pairs, after, limit, trades); err != nil {
 					close(trades)
 				}
 			}()
@@ -54,6 +56,9 @@ func HistoryPoller(ex Exchange, p Pair, freq time.Duration, channel chan<- Trade
 					delete(set, tid)
 				}
 			}
+
+			after = time.Now().Add(-(time.Minute * 15))
+			limit = 100
 		}
 	}()
 

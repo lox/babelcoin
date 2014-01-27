@@ -68,16 +68,18 @@ func (d *Driver) MarketData(pair b.Pair) (b.MarketData, error) {
 	return b.MarketData{}, errors.New("Unknown pair " + pair.String())
 }
 
-func (d *Driver) History(pair b.Pair, after time.Time, channel chan<- b.Trade) error {
-	reader, err := d.getHistoryCsv(pair)
-	if err != nil {
-		return err
-	}
-
+func (d *Driver) TradeHistory(pairs []b.Pair, after time.Time, limit int, channel chan<- b.Trade) error {
 	tempChannel := make(chan b.Trade, 10)
-	go func() {
-		d.readAllCsvTrades(pair, reader, tempChannel)
-	}()
+
+	for _, pair := range pairs {
+		reader, err := d.getHistoryCsv(pair)
+		if err != nil {
+			return err
+		}
+		go func() {
+			d.readAllCsvTrades(pair, reader, tempChannel)
+		}()
+	}
 
 	// process trades for time limiting
 	go func() {
@@ -142,27 +144,7 @@ func (d *Driver) Pairs() ([]b.Pair, error) {
 	return pairs, nil
 }
 
-func (d *Driver) Balance(symbol []b.Symbol) (map[b.Symbol]float64, error) {
-	panic("Not implemented")
-}
-
-func (d *Driver) Trade(t b.TradeType, pair b.Pair, amount float64, rate float64) (b.Order, error) {
-	panic("Not implemented")
-}
-
-func (d *Driver) CancelOrder(order b.Order) error {
-	panic("Not implemented")
-}
-
-func (d *Driver) Orders(limit int) ([]b.Order, error) {
-	panic("Not implemented")
-}
-
-func (d *Driver) Transactions(limit int) ([]b.Transaction, error) {
-	panic("Not implemented")
-}
-
-func (d *Driver) OrderBook(pair b.Pair, limit int) (b.OrderBook, error) {
+func (d *Driver) Account() b.ExchangeAccount {
 	panic("Not implemented")
 }
 
