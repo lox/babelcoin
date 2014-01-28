@@ -45,7 +45,7 @@ func HttpDurableGet(url string, times int) ([]byte, error) {
 		resp, err := http.Get(url)
 
 		// 5xx responses don't count as errors
-		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+		if err == nil && resp.StatusCode >= 500 && resp.StatusCode < 600 {
 			err = errors.New(fmt.Sprintf("Server returned %s", resp.Status))
 		}
 

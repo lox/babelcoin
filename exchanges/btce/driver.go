@@ -44,13 +44,18 @@ func New(exchange string, config map[string]interface{}) b.Exchange {
 		driver.privateApi = url.(string)
 	}
 
-	driver.client = &util.JsonRPCClient{
-		driver.privateApi,
-		config["key"].(string),
-		config["secret"].(string),
-	}
-
 	return driver
+}
+
+func (d *Driver) privateApiClient() *util.JsonRPCClient {
+	if d.client == nil {
+		d.client = &util.JsonRPCClient{
+			d.privateApi,
+			d.config["key"].(string),
+			d.config["secret"].(string),
+		}
+	}
+	return d.client
 }
 
 func (d *Driver) MarketData(pair b.Pair) (b.MarketData, error) {
@@ -71,7 +76,7 @@ func (d *Driver) Balance(symbols []b.Symbol) (map[b.Symbol]float64, error) {
 	var resp struct {
 		Funds map[string]float64 `json:"funds"`
 	}
-	if err := d.client.Call("getInfo", &resp, map[string]string{}); err != nil {
+	if err := d.privateApiClient().Call("getInfo", &resp, map[string]string{}); err != nil {
 		return map[b.Symbol]float64{}, err
 	}
 

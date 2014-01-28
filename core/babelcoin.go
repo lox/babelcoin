@@ -133,7 +133,7 @@ type ExchangeFactory func(key string, config map[string]interface{}) Exchange
 
 // returns a pair in the form btc_usd as a string
 func (p *Pair) String() string {
-	return string(p.Base + "_" + p.Counter)
+	return strings.ToLower(string(p.Base + "_" + p.Counter))
 }
 
 // parses a pair in the form of btc_usd
@@ -152,9 +152,23 @@ func ContainsPair(pair Pair, pairs []Pair) bool {
 	return false
 }
 
+// returns an identity composed of the exchange, pair and tradeid
+func (t *Trade) Identity() string {
+	return fmt.Sprintf("%s:%s:%s", t.Exchange, t.Pair.String(), t.Id)
+}
+
 // returns a string version of a trade
 func (t *Trade) String() string {
 	return fmt.Sprintf("%s %s %.5f@%.5f on %s",
 		strings.ToUpper(string(t.Type)), t.Pair.String(),
 		t.Amount, t.Rate, t.Timestamp.Format(time.Stamp))
 }
+
+type TradeSorter struct {
+	Trades []*Trade
+	By     func(t1, t2 *Trade) bool
+}
+
+func (t TradeSorter) Len() int           { return len(t.Trades) }
+func (t TradeSorter) Less(i, j int) bool { return t.By(t.Trades[i], t.Trades[j]) }
+func (t TradeSorter) Swap(i, j int)      { t.Trades[i], t.Trades[j] = t.Trades[j], t.Trades[i] }

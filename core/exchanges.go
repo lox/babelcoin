@@ -2,6 +2,7 @@ package babelcoin
 
 import (
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -21,4 +22,17 @@ func NewExchange(key string, config map[string]interface{}) (Exchange, error) {
 // called by drivers when initializing
 func AddExchangeFactory(key string, factory ExchangeFactory) {
 	exchanges[key] = factory
+}
+
+// read an exchanges key/secrets from env
+func EnvExchangeConfig(key string) map[string]interface{} {
+	config := map[string]interface{}{}
+	for _, v := range os.Environ() {
+		if strings.Index(v, strings.ToUpper(key)+"_") == 0 {
+			parts := strings.SplitN(v, "=", 2)
+			keyParts := strings.SplitN(parts[0], "_", 2)
+			config[strings.ToLower(keyParts[1])] = parts[1]
+		}
+	}
+	return config
 }

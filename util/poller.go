@@ -24,37 +24,25 @@ func MarketDataPoller(ex Exchange, pair Pair, freq time.Duration, channel chan<-
 	return nil
 }
 
-// polls Exchange.History periodically, writes new trades to channel
+// polls Exchange.History periodically, trades to channel. no de-duping occurs
 func HistoryPoller(ex Exchange, pairs []Pair, freq time.Duration, channel chan<- Trade) error {
 	ticker := time.NewTicker(freq)
 
 	go func() {
-		set := map[string]time.Time{}
-		after := time.Now().AddDate(0, 0, -3)
+		after := time.Now().AddDate(0, 0, -3) // 3 days ago
 		limit := 2000
 
 		for _ = range ticker.C {
-			trades := make(chan Trade)
+			var trades = make(chan Trade)
 
 			go func() {
-				// get history for a day ago
 				if err := ex.TradeHistory(pairs, after, limit, trades); err != nil {
 					close(trades)
 				}
 			}()
 
 			for trade := range trades {
-				if _, exists := set[trade.Id]; !exists {
-					channel <- trade
-					set[trade.Id] = trade.Timestamp
-				}
-			}
-
-			// purge old set entries
-			for tid, ts := range set {
-				if ts.Before(time.Now().Add(-(time.Minute * 3600))) {
-					delete(set, tid)
-				}
+				channel <- trade
 			}
 
 			after = time.Now().Add(-(time.Minute * 15))
